@@ -9,9 +9,7 @@ Controls:
   J             - open/close the evidence journal
   ESC           - return from a menu / quit
 
-This file deliberately uses simple Pygame drawing first.  Your group can later
-replace the coloured scene backgrounds with images in assets/ without changing
-the game logic.
+Hart will later replace the coloured scene backgrounds with images in assets/ 
 """
 
 from __future__ import annotations
@@ -28,8 +26,7 @@ except ImportError:
 import pygame
 
 
-# ---------------------------------------------------------------------------
-# Data classes: these are the "objects" your OOP subject wants to see.
+
 
 
 @dataclass
@@ -133,7 +130,7 @@ class InvestigationGame:
     MUTED = (157, 169, 188)
 
     def __init__(self) -> None:
-        # Ask Pygame for a predictable sound format before it starts.
+        
         pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.init()
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
@@ -247,7 +244,7 @@ class InvestigationGame:
         if self.video_capture is None:
             self.finish_teaser()
             return
-        # Use elapsed time, not frame-by-frame delays, to prevent audio drift.
+        
         target = int((pygame.time.get_ticks() - self.teaser_started) * self.video_fps / 1000)
         frame = None
         while self.video_index < target:
