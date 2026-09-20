@@ -143,6 +143,40 @@ class InvestigationGame:
         self.small_font = pygame.font.SysFont("consolas", 16)
         self.title_font = pygame.font.SysFont("georgia", 52, bold=True)
         self.text_size = 21
+        # Sample names/traits only: editing these does not change the story rules.
+        self.characters = [
+            ('Nico', 'Friendly, curious, optimistic', 'sample_nico.png'),
+            ('Eli', 'Quiet, observant, imaginative', 'sample_eli.png'),
+            ('Marco', 'Adventurous, loyal, impulsive', 'sample_marco.png'),
+            ('Mika', 'Studious, careful, determined', 'sample_mika.png'),
+        ]
+        self.character_index = 0
+        self.character_info_pinned = False
+        self.character_images = []
+        asset_root = Path(__file__).resolve().parent / 'assets'
+        self.character_background = None
+        stage_path = asset_root / 'backgrounds/character_background.png'
+        if stage_path.exists():
+            self.character_background = pygame.transform.smoothscale(pygame.image.load(str(stage_path)).convert(), (self.WIDTH, self.HEIGHT))
+        for _, _, filename in self.characters:
+            path = asset_root / 'characters' / filename
+            sprite = None
+            if path.exists():
+                source = pygame.image.load(str(path)).convert_alpha()
+                bounds = source.get_bounding_rect()
+                if bounds.width and bounds.height:
+                    source = source.subsurface(bounds).copy()
+                    scale = min(240 / source.get_width(), 340 / source.get_height())
+                    sprite = pygame.transform.smoothscale(source, (round(source.get_width() * scale), round(source.get_height() * scale)))
+            self.character_images.append(sprite)
+        self.text_level = 50
+        self.drag_slider = None
+        self.focus_slider = 'text'
+        self.help_page = 0
+        self.settings_background = None
+        settings_path = Path(__file__).resolve().parent / 'assets/backgrounds/settings_background.png'
+        if settings_path.exists():
+            self.settings_background = pygame.transform.smoothscale(pygame.image.load(str(settings_path)).convert(), (self.WIDTH, self.HEIGHT))
         self.volume = 0.7
         self.high_contrast = False
         self.menu_background = None
@@ -435,6 +469,23 @@ class InvestigationGame:
             self.state = "NOTICE"
 
     def choose(self, index: int) -> None:
+        if self.state == 'CHOICE_OPENING':
+            if index not in (0, 1, 2):
+                return
+            self.player.spend_time(5 if index == 2 else 20)
+            if index != 2:
+                self.player.change_composure(-10)
+                if self.check_lakas_ng_loob():
+                    return
+                place = ['Justo Alberto Auditorium', 'University Activity Center'][index]
+                self.notice = f'{place}: Wala rito ang tinutukoy ng mensahe. Balikan ko ang clue.\nLakas ng Loob -10 | 20 minutes spent.'
+                self.next_after_notice = 'CHOICE_OPENING'
+            else:
+                self.notice = 'Tahimik na libro... sa library!\nYou head to the PLM Library. 5 minutes spent.'
+                self.next_after_notice = 'LIBRARY'
+            self.dialogue_index = 0
+            self.state = 'NOTICE'
+            return
         if self.state == "FINAL_CHOICE":
             self.finish(index)
             return
@@ -471,6 +522,17 @@ class InvestigationGame:
             self.state = "BAD_ENDING"
 
     def handle_event(self, event: pygame.event.Event) -> None:
+        if self.state == 'CHOICE_OPENING' and not self.journal_open and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for index in range(3):
+                if pygame.Rect(70, 305 + index * 85, 820, 65).collidepoint(event.pos):
+                    self.choose(index)
+                    break
+            return
+        if self.state == 'CHARACTER' and event.type != pygame.QUIT:
+            self.character_event(event)
+            return
+        if self.state in ('SETTINGS', 'HELP') and self.settings_event(event):
+            return
         if event.type == pygame.QUIT:
             self.running = False
             return
@@ -651,14 +713,118 @@ class InvestigationGame:
         if self.state == 'MENU':
             return {label: pygame.Rect(340, 340 + index * 68, 280, 52)
                     for index, label in enumerate(['START', 'MENU', 'QUIT'])}
-        return {
-            'TEXT -': pygame.Rect(260, 220, 180, 48),
-            'TEXT +': pygame.Rect(520, 220, 180, 48),
-            'CONTRAST': pygame.Rect(340, 300, 280, 48),
-            'VOLUME -': pygame.Rect(260, 420, 180, 48),
-            'VOLUME +': pygame.Rect(520, 420, 180, 48),
-            'BACK': pygame.Rect(380, 510, 200, 48),
-        }
+        return {'HELP / TUTORIAL': pygame.Rect(300, 440, 360, 54),
+                'BACK': pygame.Rect(360, 520, 240, 52)}
+
+    def slider_value(self, name, value):
+        value = max(1, min(100, round(value)))
+        if name == 'text':
+            self.text_level = value
+            self.text_size = round(18 + (value - 1) * 5 / 99)
+            self.font = pygame.font.SysFont('consolas', self.text_size)
+        else:
+            self.volume = value / 100
+            if pygame.mixer.get_init():
+                pygame.mixer.music.set_volume(self.volume)
+
+    def settings_event(self, event):
+        if event.type == pygame.QUIT:
+            return False
+        if self.state == 'HELP':
+            if ((event.type == pygame.KEYDOWN and event.key in
+                 (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_RETURN))
+                    or (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1)):
+                self.state = 'SETTINGS'
+                self.drag_slider = None
+            return True
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self.drag_slider = None
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for name, y in [('text', 260), ('volume', 375)]:
+                if pygame.Rect(265, y - 20, 430, 40).collidepoint(event.pos):
+                    self.drag_slider = self.focus_slider = name
+                    self.slider_value(name, 1 + (event.pos[0] - 280) / 400 * 99)
+                    return True
+            for name, rect in self.ui_buttons().items():
+                if rect.collidepoint(event.pos):
+                    self.state = 'HELP' if name == 'HELP / TUTORIAL' else 'MENU'
+                    self.help_page = 0
+        elif event.type == pygame.MOUSEMOTION and self.drag_slider:
+            self.slider_value(self.drag_slider, 1 + (event.pos[0] - 280) / 400 * 99)
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.state = 'MENU'
+            elif event.key == pygame.K_h:
+                self.state = 'HELP'
+                self.help_page = 0
+            elif event.key == pygame.K_TAB:
+                self.focus_slider = 'volume' if self.focus_slider == 'text' else 'text'
+            elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                value = self.text_level if self.focus_slider == 'text' else round(self.volume * 100)
+                self.slider_value(self.focus_slider, value + (1 if event.key == pygame.K_RIGHT else -1))
+        return True
+
+    def settings_button(self, label, rect):
+        hovered = rect.collidepoint(pygame.mouse.get_pos())
+        pygame.draw.rect(self.screen, (29, 35, 49), rect, border_radius=12)
+        pygame.draw.rect(self.screen, self.GOLD if hovered or 'HELP' in label else self.MUTED, rect, 2, border_radius=12)
+        text = self.font.render(label, True, self.PAPER)
+        self.screen.blit(text, text.get_rect(center=rect.center))
+
+    def draw_settings_ui(self):
+        self.screen.fill(self.BLACK)
+        if self.settings_background:
+            self.screen.blit(self.settings_background, (0, 0))
+        if self.state == 'HELP':
+            # One centered modal, matching the supplied reference.
+            if self.menu_background:
+                self.screen.blit(self.menu_background, (0, 0))
+            shade = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
+            shade.fill((0, 0, 0, 185))
+            self.screen.blit(shade, (0, 0))
+            box = pygame.Rect(90, 40, 780, 560)
+            pygame.draw.rect(self.screen, (29, 35, 49), box, border_radius=12)
+            pygame.draw.rect(self.screen, self.GOLD, box, 3, border_radius=12)
+            title = self.title_font.render('HOW TO PLAY', True, self.GOLD)
+            self.screen.blit(title, title.get_rect(center=(480, 92)))
+            tutorial_font = pygame.font.SysFont('consolas', 20)
+            body = (
+                "OBJECTIVE:\n"
+                "Investigate your friend's disappearance before time runs out.\n\n"
+                "GAME MECHANICS:\n"
+                "- Lakas ng Loob: Wrong choices and traps lower your courage.\n"
+                "  Reaching 0 results in a Panic Game Over!\n"
+                "- Time: Puzzle attempts and travel take time. Reading does not.\n"
+                "- Evidence Journal [J]: Review collected clues to choose wisely.\n\n"
+                "CONTROLS:\n"
+                "- [SPACE / ENTER]: Advance text dialogue\n"
+                "- [1, 2, 3]: Answer puzzles and choose investigation routes\n"
+                "- [J]: Open or close your Evidence Journal\n"
+                "- [R]: Restart after an ending"
+            )
+            self.draw_lines(body, 130, 150, 700, self.PAPER, tutorial_font)
+            hint = tutorial_font.render(
+                'Click anywhere or press [ESC] / [SPACE] to close',
+                True, self.GOLD)
+            self.screen.blit(hint, hint.get_rect(center=(480, 565)))
+            return
+        if not self.settings_background:
+            self.draw_lines('GAME SETTINGS', 300, 90, 500, self.RED)
+        for name, y in [('text', 260), ('volume', 375)]:
+            value = self.text_level if name == 'text' else round(self.volume * 100)
+            label = f'Text Size: {value}' if name == 'text' else f'Volume: {value}%'
+            surface = self.font.render(label, True, self.PAPER)
+            self.screen.blit(surface, surface.get_rect(center=(480, y - 42)))
+            pygame.draw.line(self.screen, (58, 51, 48), (280, y), (680, y), 12)
+            x = round(280 + (value - 1) / 99 * 400)
+            pygame.draw.line(self.screen, self.GOLD, (280, y), (x, y), 12)
+            pygame.draw.rect(self.screen, self.GOLD, (x - 10, y - 14, 20, 28), border_radius=4)
+            pygame.draw.rect(self.screen, self.INK, (x - 10, y - 14, 20, 28), 2, border_radius=4)
+            for number, position in [('1', 280), ('100', 680)]:
+                text = self.small_font.render(number, True, self.PAPER)
+                self.screen.blit(text, text.get_rect(center=(position, y + 28)))
+        for label, rect in self.ui_buttons().items():
+            self.settings_button(label, rect)
 
     def menu_action(self, action: str) -> None:
         if action == 'START':
@@ -707,7 +873,91 @@ class InvestigationGame:
         surface = self.small_font.render(hint, True, self.PAPER)
         self.screen.blit(surface, surface.get_rect(center=(480, 570)))
 
+    def character_rect(self):
+        sprite = self.character_images[self.character_index]
+        return sprite.get_rect(midbottom=(480, 505)) if sprite else pygame.Rect(400, 200, 160, 305)
+
+    def character_buttons(self):
+        return {'<': pygame.Rect(260, 310, 60, 60),
+                '>': pygame.Rect(640, 310, 60, 60),
+                'BACK': pygame.Rect(260, 582, 170, 42),
+                'SELECT': pygame.Rect(530, 582, 170, 42)}
+
+    def character_action(self, action):
+        if action in ('<', '>'):
+            self.character_index = (self.character_index + (1 if action == '>' else -1)) % len(self.characters)
+            self.character_info_pinned = False
+        elif action == 'BACK':
+            self.state = 'MENU'
+        elif action == 'SELECT':
+            self.player.character = self.characters[self.character_index][0]
+            self.state = 'CHOICE_OPENING'
+            self.dialogue_index = 0
+
+    def character_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            actions = {pygame.K_LEFT: '<', pygame.K_RIGHT: '>', pygame.K_ESCAPE: 'BACK', pygame.K_RETURN: 'SELECT'}
+            if event.key in actions:
+                self.character_action(actions[event.key])
+            elif event.key in (pygame.K_SPACE, pygame.K_i):
+                self.character_info_pinned = not self.character_info_pinned
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            for action, rect in self.character_buttons().items():
+                if rect.collidepoint(event.pos):
+                    self.character_action(action)
+                    return
+            self.character_info_pinned = (not self.character_info_pinned) if self.character_rect().collidepoint(event.pos) else False
+
+    def draw_character_selection(self):
+        self.screen.fill(self.INK)
+        if self.character_background:
+            self.screen.blit(self.character_background, (0, 0))
+        else:
+            self.draw_lines('CHOOSE A CHARACTER', 200, 65, 600, self.RED)
+        sprite = self.character_images[self.character_index]
+        rect = self.character_rect()
+        if sprite:
+            self.screen.blit(sprite, rect)
+        else:
+            pygame.draw.ellipse(self.screen, self.MUTED, rect)
+        for label, button in self.character_buttons().items():
+            self.settings_button(label, button)
+        counter = self.small_font.render(f'{self.character_index + 1} / {len(self.characters)}   |   Hover or click for traits', True, self.PAPER)
+        pygame.draw.rect(self.screen, self.INK, (270, 552, 420, 26), border_radius=6)
+        self.screen.blit(counter, counter.get_rect(center=(480, 565)))
+        if self.character_info_pinned or rect.collidepoint(pygame.mouse.get_pos()):
+            self.panel(pygame.Rect(695, 190, 245, 145), self.GOLD)
+            name, traits, _ = self.characters[self.character_index]
+            self.draw_lines(name, 710, 207, 215, self.GOLD)
+            self.draw_lines(traits, 710, 240, 215, self.PAPER, self.small_font)
+            self.draw_lines('Sample profile', 710, 303, 215, self.MUTED, self.small_font)
+
     def draw(self) -> None:
+        if self.state == 'CHOICE_OPENING':
+            self.screen.fill(self.INK)
+            self.draw_hud()
+            heading = self.title_font.render('THE FIRST CLUE', True, self.PAPER)
+            self.screen.blit(heading, (50, 75))
+            self.panel(pygame.Rect(50, 150, 860, 130), self.GOLD)
+            self.draw_lines('UNKNOWN NUMBER - 4:28 PM', 70, 165, 820, self.GOLD, self.small_font)
+            self.draw_lines(self.backstory[-1][1], 70, 195, 810, self.PAPER)
+            for index, label in enumerate(['Justo Alberto Auditorium', 'University Activity Center', 'PLM Library']):
+                rect = pygame.Rect(70, 305 + index * 85, 820, 65)
+                self.panel(rect, self.MUTED)
+                self.draw_lines(f'[{index + 1}] {label}', 95, rect.y + 18, 760, self.PAPER)
+            self.draw_lines('Saan kaya ito? Click a location or press 1, 2, or 3.', 70, 565, 820, self.MUTED, self.small_font)
+            if self.journal_open:
+                self.draw_journal()
+            pygame.display.flip()
+            return
+        if self.state == 'CHARACTER':
+            self.draw_character_selection()
+            pygame.display.flip()
+            return
+        if self.state in ('SETTINGS', 'HELP'):
+            self.draw_settings_ui()
+            pygame.display.flip()
+            return
         if self.state in ('MENU', 'SETTINGS'):
             self.draw_menu_ui()
             pygame.display.flip()
