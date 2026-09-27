@@ -19,6 +19,8 @@ from typing import Callable
 import sys
 from pathlib import Path
 import math
+import json
+from array import array
 try:
     import cv2
 except ImportError:
@@ -142,10 +144,9 @@ class InvestigationGame:
         self.text_size = 21
         # Sample names/traits only: editing these does not change the story rules.
         self.characters = [
-            ('Nico', 'Friendly, curious, optimistic', 'sample_nico.png'),
-            ('Eli', 'Quiet, observant, imaginative', 'sample_eli.png'),
-            ('Marco', 'Adventurous, loyal, impulsive', 'sample_marco.png'),
-            ('Mika', 'Studious, careful, determined', 'sample_mika.png'),
+            ('Mateo', 'Loyal, emotional, impulsive', 'sample_marco.png'),
+            ('Clara', 'Analytical, proud, independent', 'sample_mika.png'),
+            ('Julian', 'Observant, empathetic, reserved', 'sample_eli.png'),
         ]
         self.character_index = 0
         self.character_info_pinned = False
@@ -175,6 +176,11 @@ class InvestigationGame:
         if settings_path.exists():
             self.settings_background = pygame.transform.smoothscale(pygame.image.load(str(settings_path)).convert(), (self.WIDTH, self.HEIGHT))
         self.volume = 0.7
+        self.settings_path = Path(__file__).resolve().parent / 'settings.json'
+        self.volume_preview = None
+        self.preview_channel = None
+        self.last_preview_time = -1000
+        self.load_settings()
         self.high_contrast = False
         self.menu_background = None
         background_path = Path(__file__).resolve().parent / 'assets/backgrounds/menu_background.png'
@@ -235,7 +241,7 @@ class InvestigationGame:
         if self.video_capture is not None:
             self.video_capture.release()
             self.video_capture = None
-        self.state = "BACKSTORY"
+        self.state = "INTRO"
         self.dialogue_index = 0
 
     def update(self) -> None:
@@ -402,7 +408,7 @@ class InvestigationGame:
 
     def reset(self) -> None:
         self.player = Player()
-        self.state = "BACKSTORY"
+        self.state = "MENU"
         self.dialogue_index = 0
         self.notice = ""
         self.journal_open = False
@@ -410,17 +416,19 @@ class InvestigationGame:
         self.security_alerted = False
 
     def current_dialogue(self) -> list[tuple[str, str]]:
+        if self.state == "INTRO":
+            return [
+                ("SYSTEM", "PLM HALLWAY - A missing-person poster hangs on the bulletin board. The photograph belongs to Lucas 'Luke' Valderrama, a campus journalist."),
+                ("STUDENT 1", "Isang linggo na mula nang iulat na nawawala si Lucas. Wala pa ring malinaw na balita..."),
+                ("STUDENT REPORTER", "Lucas was last seen near Intramuros at exactly 4:28 PM. Anyone with information is asked to come forward."),
+                ("SYSTEM", "The broadcast fades. Around the poster, whispers give way to silence. Someone is still waiting for Lucas to come home."),
+            ]
         if self.state == "BACKSTORY":
             return self.backstory
         if self.state in self.locations:
             return self.locations[self.state].dialogue
         if self.state == "FINALE":
-            return [
-                ("SYSTEM", "PLM COURTYARD - 4:28 AM. Your hidden alert has reached campus security. You have one last chance."),
-                ("ANTAGONIST", "You and your friend found the recordings. You were going to expose me, so I made this into a game."),
-                ("PLAYER", "I know which clues were yours, which were planted, and where you were watching from."),
-                ("SYSTEM", "The security team has your location and the projector recording. Keep the antagonist talking."),
-            ]
+            return self.route_finale + [("SYSTEM", "Security has your recording. Keep the antagonist talking." if self.security_alerted else "No backup is confirmed. Lucas watches you from the chair.")]
         return []
 
     def advance_dialogue(self) -> None:
@@ -429,8 +437,10 @@ class InvestigationGame:
         if self.dialogue_index < len(dialogue):
             return
         self.dialogue_index = 0
-        if self.state == "BACKSTORY":
+        if self.state == "INTRO":
             self.state = "MENU"
+        elif self.state == "BACKSTORY":
+            self.state = "CHOICE_OPENING"
         elif self.state in self.locations:
             # A solved puzzle stays solved if the player returns after a wrong route.
             if self.state in self.solved_puzzles:
@@ -575,7 +585,7 @@ class InvestigationGame:
                 self.dialogue_index = 0
             elif event.key == pygame.K_ESCAPE:
                 self.state = "MENU"
-        elif self.state in {"BACKSTORY", *self.locations, "FINALE"}:
+        elif self.state in {"INTRO", "BACKSTORY", *self.locations, "FINALE"}:
             if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                 self.advance_dialogue()
         elif self.state.startswith("PUZZLE_"):
@@ -620,7 +630,7 @@ class InvestigationGame:
 
     def draw_dialogue(self) -> None:
         dialogue = self.current_dialogue()
-        title = "PLM HALLWAY" if self.state == "BACKSTORY" else self.locations[self.state].title if self.state in self.locations else "PLM COURTYARD"
+        title = "PLM HALLWAY" if self.state in {"INTRO", "BACKSTORY"} else self.locations[self.state].title if self.state in self.locations else "PLM COURTYARD"
         color = self.locations[self.state].color if self.state in self.locations else (47, 35, 42)
         self.screen.fill(color)
         # A simple silhouette. Replace later with sprite images if desired.
@@ -628,11 +638,11 @@ class InvestigationGame:
         pygame.draw.rect(self.screen, self.INK, (145, 285, 90, 180), border_radius=30)
         self.draw_hud()
         self.screen.blit(self.title_font.render(title, True, self.PAPER), (40, 78))
-        self.panel(pygame.Rect(45, 445, 870, 160), self.GOLD)
+        self.panel(pygame.Rect(45, 390, 870, 225), self.GOLD)
         speaker, text = dialogue[self.dialogue_index]
-        self.screen.blit(self.font.render(speaker, True, self.GOLD), (70, 470))
-        self.draw_lines(text, 70, 505, 820, self.PAPER)
-        self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (745, 575))
+        self.screen.blit(self.font.render(speaker, True, self.GOLD), (70, 410))
+        self.draw_lines(text, 70, 445, 820, self.PAPER)
+        self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (745, 590))
 
     def draw_choice(self) -> None:
         if self.state == "FINAL_CHOICE":
@@ -643,11 +653,7 @@ class InvestigationGame:
         self.draw_hud()
         if source == "FINALE":
             title = "FINAL DECISION"
-            choices = [
-                "Use the evidence and distract the antagonist",
-                "Plead and surrender",
-                "Run away to find help",
-            ]
+            choices = self.final_choices
         else:
             title = self.locations[source].title
             choices = [choice.label for choice in self.locations[source].choices]
@@ -699,12 +705,13 @@ class InvestigationGame:
             "BAD_ENDING": ("TRAGIC ENDING", "The wrong final move gives the antagonist control. The screen fades just before dawn."),
             "PANIC_ENDING": ("GAME OVER - LOST IN THE DARK", "Your Lakas ng Loob reaches zero. Fear and exhaustion overwhelm you; you lose your direction, stop trusting the clues, and the trail goes cold before you can reach your friend."),
         }
-        title, description = endings[self.state]
+        title, _ = endings[self.state]
+        description = self.route_endings[self.state]
         self.screen.fill((32, 15, 21))
         title_surface = self.title_font.render(title, True, self.RED)
         self.screen.blit(title_surface, title_surface.get_rect(center=(self.WIDTH // 2, 205)))
         self.draw_lines(description, 170, 285, 620, self.PAPER)
-        self.screen.blit(self.font.render("[R] Restart", True, self.GOLD), (400, 450))
+        self.screen.blit(self.font.render("[R] Restart", True, self.GOLD), (400, 580))
 
     def ui_buttons(self) -> dict:
         if self.state == 'MENU':
@@ -713,19 +720,69 @@ class InvestigationGame:
         return {'HELP / TUTORIAL': pygame.Rect(300, 440, 360, 54),
                 'BACK': pygame.Rect(360, 520, 240, 52)}
 
+    def load_settings(self):
+        try:
+            data = json.loads(self.settings_path.read_text(encoding='utf-8'))
+            self.slider_value('text', float(data.get('text', 63)))
+            self.slider_value('volume', float(data.get('volume', 70)))
+        except (OSError, ValueError, TypeError, AttributeError, OverflowError):
+            self.slider_value('text', 63)
+            self.slider_value('volume', 70)
+
+    def save_settings(self):
+        try:
+            self.settings_path.write_text(json.dumps({
+                'text': self.text_level, 'volume': round(self.volume * 100)
+            }, indent=2), encoding='utf-8')
+        except OSError as error:
+            print(f'Could not save settings: {error}')
+
+    def preview_volume(self):
+        mixer = pygame.mixer.get_init()
+        if not mixer:
+            return
+        now = pygame.time.get_ticks()
+        if now - self.last_preview_time < 150:
+            return
+        self.last_preview_time = now
+        if self.volume_preview is None:
+            rate, sample_format, channels = mixer
+            if sample_format != -16:
+                return
+            count = int(rate * 0.12)
+            samples = array('h')
+            for i in range(count):
+                envelope = min(1.0, i / (rate * .01), (count - i) / (rate * .03))
+                sample = round(6500 * envelope * math.sin(2 * math.pi * 440 * i / rate))
+                samples.extend([sample] * channels)
+            self.volume_preview = pygame.mixer.Sound(buffer=samples.tobytes())
+        self.volume_preview.set_volume(self.volume)
+        self.preview_channel = self.volume_preview.play()
+        if self.preview_channel:
+            self.preview_channel.set_volume(1.0)
+
     def slider_value(self, name, value):
         value = max(1, min(100, round(value)))
         if name == 'text':
-            self.text_level = value
-            self.text_size = round(18 + (value - 1) * 5 / 99)
+            # Snap to real pixel sizes: each selectable step looks different.
+            self.text_size = round(16 + (value - 1) * 8 / 99)
+            self.text_level = round(1 + (self.text_size - 16) * 99 / 8)
             self.font = pygame.font.SysFont('consolas', self.text_size)
         else:
             self.volume = value / 100
             if pygame.mixer.get_init():
                 pygame.mixer.music.set_volume(self.volume)
+                for i in range(pygame.mixer.get_num_channels()):
+                    pygame.mixer.Channel(i).set_volume(self.volume)
+                if self.volume_preview:
+                    # The preview sound owns its gain; avoid applying it twice.
+                    self.volume_preview.set_volume(self.volume)
+                    if self.preview_channel:
+                        self.preview_channel.set_volume(1.0)
 
     def settings_event(self, event):
         if event.type == pygame.QUIT:
+            self.save_settings()
             return False
         if self.state == 'HELP':
             if ((event.type == pygame.KEYDOWN and event.key in
@@ -735,21 +792,31 @@ class InvestigationGame:
                 self.drag_slider = None
             return True
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            if self.drag_slider:
+                self.save_settings()
             self.drag_slider = None
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for name, y in [('text', 260), ('volume', 375)]:
                 if pygame.Rect(265, y - 20, 430, 40).collidepoint(event.pos):
                     self.drag_slider = self.focus_slider = name
                     self.slider_value(name, 1 + (event.pos[0] - 280) / 400 * 99)
+                    if name == 'volume':
+                        self.preview_volume()
                     return True
             for name, rect in self.ui_buttons().items():
                 if rect.collidepoint(event.pos):
+                    self.save_settings()
+                    self.drag_slider = None
                     self.state = 'HELP' if name == 'HELP / TUTORIAL' else 'MENU'
                     self.help_page = 0
         elif event.type == pygame.MOUSEMOTION and self.drag_slider:
             self.slider_value(self.drag_slider, 1 + (event.pos[0] - 280) / 400 * 99)
+            if self.drag_slider == 'volume':
+                self.preview_volume()
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
+                self.save_settings()
+                self.drag_slider = None
                 self.state = 'MENU'
             elif event.key == pygame.K_h:
                 self.state = 'HELP'
@@ -758,7 +825,11 @@ class InvestigationGame:
                 self.focus_slider = 'volume' if self.focus_slider == 'text' else 'text'
             elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
                 value = self.text_level if self.focus_slider == 'text' else round(self.volume * 100)
-                self.slider_value(self.focus_slider, value + (1 if event.key == pygame.K_RIGHT else -1))
+                step = 99 / 8 if self.focus_slider == 'text' else 1
+                self.slider_value(self.focus_slider, value + (step if event.key == pygame.K_RIGHT else -step))
+                if self.focus_slider == 'volume':
+                    self.preview_volume()
+                self.save_settings()
         return True
 
     def settings_button(self, label, rect):
@@ -809,7 +880,7 @@ class InvestigationGame:
             self.draw_lines('GAME SETTINGS', 300, 90, 500, self.RED)
         for name, y in [('text', 260), ('volume', 375)]:
             value = self.text_level if name == 'text' else round(self.volume * 100)
-            label = f'Text Size: {value}' if name == 'text' else f'Volume: {value}%'
+            label = f'Text: {value}%' if name == 'text' else f'Volume: {value}%'
             surface = self.font.render(label, True, self.PAPER)
             self.screen.blit(surface, surface.get_rect(center=(480, y - 42)))
             pygame.draw.line(self.screen, (58, 51, 48), (280, y), (680, y), 12)
@@ -870,6 +941,155 @@ class InvestigationGame:
         surface = self.small_font.render(hint, True, self.PAPER)
         self.screen.blit(surface, surface.get_rect(center=(480, 570)))
 
+    def configure_route(self):
+        name = self.characters[self.character_index][0]
+        self.player = Player(name=name, character=name)
+        self.solved_puzzles.clear()
+        self.security_alerted = False
+        self.journal_open = False
+        self.notice = ''
+        self.locations = self.make_locations()
+        self.puzzles = self.make_puzzles()
+        # The locations and puzzle rules are shared; the perspective is not.
+        routes = {
+            'Mateo': {
+                'opening': [
+                    ('SYSTEM', 'Mateo Delos Reyes stops at the missing poster. Lucas, his childhood best friend, stares back from the photograph.'),
+                    ('MATEO', 'Hindi... Nagtalo pa kami sa labas ng gate bago siya umalis. Bakit hindi ko siya pinigilan?'),
+                    ('STUDENT 1', 'Kalma lang, Mateo. Sobrang bigat na rin ng loob namin para kay Lucas.'),
+                    ('SYSTEM', 'Mateo braces a shaking hand against the wall.'),
+                    ('MATEO', 'Kasalanan ko ito. Kung sinamahan ko lang sana siya pabalik... nasaan ka na ba, Luke?'),
+                ],
+                'reaction': 'Alam niya kung saan kami madalas tumambay. Magpakita ka! Hindi ko iiwan si Lucas.',
+                'scenes': {
+                    'LIBRARY': [('MATEO', 'Dito kami madalas magpuyat para sa exams. Nangako kaming sabay ga-graduate. Nasaan ang iniwan mo, Luke?'), ('SYSTEM', 'Dust covers the empty shelves. An old textbook carries a library stamp.')],
+                    'SAN_AGUSTIN': [('MATEO', 'Dito tayo nagpapalipas ng oras pagkatapos ng klase. May krus sa lumang bato, tulad ng nasa card.'), ('SYSTEM', 'The stone trail refers to prisoners and the northern end of Intramuros.')],
+                    'FORT_SANTIAGO': [('CARETAKER', 'Ilang linggo na mula nang pumunta rito ang lagi mong kasama, iho. May iniwan siyang sobre para sa magpapatuloy.'), ('MATEO', 'Sul sulat niya ito... Luke, kahit noon naghahanda ka na?')],
+                    'ESCOLTA': [('SYSTEM', 'A radio crackles beneath a flickering streetlight.'), ('UNKNOWN NUMBER', 'Masyado kang mapagtiwala, Mateo. Binabantayan ko ang bawat liko mo.'), ('MATEO', 'Galit lang ang gusto mong makuha sa akin. Kailangan kong makinig sa signal, hindi sa iyo.')],
+                    'QUIAPO': [('SYSTEM', 'A bright red mark and a bridge note stand out on a cracked wall.'), ('MATEO', 'Gusto kong tumakbo agad kay Lucas. Pero paano kung bitag? Ihahambing ko muna sa mga nauna.')],
+                    'STA_CRUZ': [('SYSTEM', 'A Polaroid and cassette wait on a wooden chair in an abandoned shop.'), ('MATEO', 'Hindi pa tapos ang pangako natin, Luke. May tinatago ang litratong ito; kailangan kong makita.')],
+                    'WAREHOUSE': [('SYSTEM', 'Inside the damp warehouse, loose cables surround a flickering projector.'), ('MATEO', 'May tao sa malabong larawan. Lucas? Kailangan kong linawin ito bago ako sumugod.'), ('UNKNOWN NUMBER', 'Bumalik ka sa loob ng pader bago sumapit ang liwanag.')],
+                },
+                'success': [
+                    'Sulat ni Lucas at ang blue-black stamp. Totoong bakas ito. Ang krus at lumang bato ay patungo sa San Agustin.',
+                    'Fort Santiago. Susundan ko ang ebidensya, hindi ang takot ko.',
+                    'Escolta, sa kabilang ilog. Kilala ko ang daan; hawak ko ang sobre ni Lucas.',
+                    '94.2 FM: deboto at estero. Quiapo ang susunod, kahit may nagmamanman.',
+                    'Pulang tinta at padalos-dalos na sulat. Hindi ito kay Lucas. Sa Sta. Cruz ang tunay na marka.',
+                    'Sa liwanag ng buwan, lumitaw ang bodega sa tabi ng estero. Ang cassette ay may tunog malapit sa PLM.',
+                    'Buhay si Lucas, nakatali sa PLM courtyard. Ipapadala ko ang recording; hindi ko siya maililigtas sa galit lang.',
+                ],
+                'failure': 'Huminga ka, Mateo. Hindi mo maitatama ang away ninyo sa padalos-dalos na sagot.',
+                'travel': 'Para kay Lucas. Kailangan kong manatiling kalmado.',
+                'finale': [('ANTAGONIST', 'You and Lucas found the recordings. You were going to expose me, so I made this into a game.'), ('MATEO', 'Alam ko kung alin ang totoong clue at alin ang itinanim mo. Bitawan mo na siya!')],
+                'choices': ['Present the evidence and keep the antagonist talking', 'Surrender the evidence to bargain for Lucas', 'Leave Lucas to search for help outside'],
+                'endings': [
+                    'Mateo holds back his anger and presents the evidence. Security intervenes and rescues Lucas. Their argument is no longer their last conversation. Mateo finally has the chance to apologize and rebuild their promise.',
+                    'Mateo gets Lucas to safety, but the case remains incomplete and the antagonist escapes. His best friend is alive; their relief is shadowed by unanswered questions. An apology is only the beginning of healing.',
+                    'Mateo lets desperation replace the evidence-led plan. The antagonist regains control, cutting off his chance to reach Lucas. As the scene fades, Mateo calls his best friend\'s name without an answer.',
+                    'At zero Lakas ng Loob, guilt and exhaustion overwhelm Mateo. Every turn recalls their last argument. He can no longer follow the trail, and the search ends before he reaches Lucas.',
+                ],
+            },
+            'Clara': {
+                'opening': [
+                    ('SYSTEM', 'Clara Gonzales stares at Lucas Valderrama\'s missing poster. Students whisper about their academic rivalry.'),
+                    ('CLARA', 'Hindi ko ginawa. Bakit ganyan makatingin ang lahat sa akin?'),
+                    ('STUDENT 1', 'Magkalaban kayo sa pinakamataas na parangal. Ikaw raw ang huling kausap niya, Clara?'),
+                    ('SYSTEM', 'Clara backs away from the crowd, trying to steady her breathing.'),
+                    ('CLARA', 'Kailangan kong mahanap si Lucas. Kung hindi, ako ang pagbibintangan. Walang maniniwala sa akin.'),
+                ],
+                'reaction': 'May nagtatanim ng ebidensya laban sa akin. Kailangan kong sundan ang trail at patunayan kung sino ang may gawa.',
+                'scenes': {
+                    'LIBRARY': [('CLARA', 'Dito magsisimula ang laro niya. Hindi sapat ang hinala; kailangan ko ng mapapatunayang ebidensya.'), ('SYSTEM', 'An old textbook and its shelf code interrupt the rows of dusty books.')],
+                    'SAN_AGUSTIN': [('SYSTEM', 'Clara examines the stone markings, repeatedly looking over her shoulder.'), ('CLARA', 'Baka may sumusunod. Pero ang simbolo ang susuriin ko, hindi ang bawat anino.')],
+                    'FORT_SANTIAGO': [('CARETAKER', 'May sobre para sa taong pinagbintangan ng lahat. Ilang linggo na mula nang pumunta rito ang karibal mo.'), ('CLARA', 'Kahit dito, alam nila ang tsismis. Ano ang tunay na sinasabi ng sobre?')],
+                    'ESCOLTA': [('SYSTEM', 'A radio crackles beneath the streetlight.'), ('UNKNOWN NUMBER', 'Akala mo malinis ang pangalan mo, Clara? Konti na lang, sa kulungan ka matatapos.'), ('CLARA', 'Sino ka ba? Hindi ako susuko sa pagbabanta. May malinaw na signal sa ingay na ito.')],
+                    'QUIAPO': [('SYSTEM', 'A red note directs Clara toward a bridge.'), ('CLARA', 'Kung may nag-aabang na awtoridad doon, magmumukha akong tumatakas. Susuriin ko ang marka bago sumunod.')],
+                    'STA_CRUZ': [('SYSTEM', 'A wooden chair holds a Polaroid and cassette in a deserted shop.'), ('CLARA', 'May kulang sa nakikita ko. Kapag nahanap ko ang nakatagong mensahe, mas malapit ako sa gumawa nito.')],
+                    'WAREHOUSE': [('SYSTEM', 'A projector struggles to display an image through loose connections.'), ('CLARA', 'Kailangan ko ng malinaw na recording, hindi isa pang paratang. Ito ang puwedeng sumira sa setup niya.'), ('UNKNOWN NUMBER', 'Bumalik ka sa PLM. Tingnan natin kung sino ang paniniwalaan nila.')],
+                },
+                'success': [
+                    'DS 686 .P6: Philippine history. Nakuha ko ang card at krus. Susuriin ko ang pinagmulan habang sinusundan ang San Agustin clue.',
+                    'Ang bilangguan at hilagang lokasyon ay tumuturo sa Fort Santiago. May lohika ang trail.',
+                    'Lumang sinehan at kalakalan sa kabilang ilog: Escolta. Mas matibay ito kaysa tsismis.',
+                    '94.2 FM. Ang deboto at estero ay tumuturo sa Quiapo. Itatala ko ang recording.',
+                    'Pula at minadaling sulat, hindi blue-black. Tinangka akong ilagay sa bridge trap. Sa Sta. Cruz ang tunay na trail.',
+                    'Ipinakita ng moonlight ang warehouse location. Itatabi ko rin ang cassette bilang corroborating evidence.',
+                    'Nasa PLM courtyard si Lucas. Ipapadala ko ang recording para maimbestigahan ang totoong salarin at ang pag-frame sa akin.',
+                ],
+                'failure': 'Takot ang humahadlang, Clara. Balikan ang detalye; hindi patunay ang unang hinala.',
+                'travel': 'Bawat hakbang ay kailangang may batayan, hindi tsismis.',
+                'finale': [('ANTAGONIST', 'Ginamit ko ang rivalry ninyo. Madaling paniwalain silang gusto mong mawala si Lucas.'), ('CLARA', 'Maling tao ang pinagbintangan mo. Hawak ko ang trail ng panlilinlang mo at ang ebidensya kung nasaan si Lucas.')],
+                'choices': ['Expose the planted clues and hold the antagonist\'s attention', 'Hand over the evidence for a promise to clear your name', 'Leave the courtyard to defend yourself elsewhere'],
+                'endings': [
+                    'Clara exposes the frame-up and security rescues Lucas. The evidence identifies the mastermind and clears her name. She faces her academic rival as an ally, no longer letting campus rumors define her.',
+                    'Clara helps Lucas escape, but gaps in the evidence allow the mastermind to disappear. Lucas can speak for her, yet the full setup remains unproven. She has saved him, but rebuilding trust will take time.',
+                    'Clara abandons the evidence-led confrontation. The antagonist exploits her fear for her reputation and regains control of the scene. Lucas remains beyond her reach, and her account of the truth goes unheard.',
+                    'At zero Lakas ng Loob, fear of accusation overwhelms Clara. She stops trusting witnesses and her own deductions. Unable to continue the investigation, she loses the trail before she can rescue Lucas or expose the setup.',
+                ],
+            },
+            'Julian': {
+                'opening': [
+                    ('SYSTEM', 'Julian Mendoza stands near Lucas Valderrama\'s missing poster, gripping a sketchbook filled with portraits he never showed him.'),
+                    ('JULIAN', 'Lagi kitang pinagmamasdan mula sa malayo. Bakit hindi ko sinabi kung gaano ka kahalaga sa akin?'),
+                    ('STUDENT 1', 'Madalas silang magkatabi sa library, pero halos hindi nag-uusap.'),
+                    ('SYSTEM', 'Julian closes his eyes and grips his bag as a tear falls.'),
+                    ('JULIAN', 'Hindi na ako mananahimik. Hahanapin kita, Lucas.'),
+                ],
+                'reaction': 'Ang linyang iyan ay mula sa librong pinagsasaluhan namin. Sino ka? Bakit mo ginagamit ang alaala namin?',
+                'scenes': {
+                    'LIBRARY': [('JULIAN', 'Dalawang taon sa parehong mesa. Kabisado ko ang tahimik mong gawi, Lucas. May bakas ka bang iniwan?'), ('SYSTEM', 'Julian searches the dusty shelves near their familiar table.')],
+                    'SAN_AGUSTIN': [('JULIAN', 'Naalala ko ang hapong nag-sketch tayo rito. Pamilyar ang mga batong ito.'), ('SYSTEM', 'The cross symbol leads Julian to a historical trail toward a northern fort.')],
+                    'FORT_SANTIAGO': [('CARETAKER', 'May iniwang sobre para sa taong nakakakilala sa kanya nang lubusan. Tahimik din siyang dumadaan dito.'), ('JULIAN', 'Alam ng nagpadala ang mga lugar na pinuntahan namin. Pero sino ang nagmamasid?')],
+                    'ESCOLTA': [('SYSTEM', 'Static interrupts the silence around an old radio.'), ('UNKNOWN NUMBER', 'Tahimik ka, Julian. Pero hindi siya maililigtas ng pagmamahal na itinatago mo sa mga pahina.'), ('JULIAN', 'Alam niya ang nararamdaman ko? Hindi iyon dahilan para tumigil. Pakikinggan ko ang signal.')],
+                    'QUIAPO': [('SYSTEM', 'A red mark points toward a bridge; a smaller mark is almost hidden nearby.'), ('JULIAN', 'Hindi lang kulay ang titingnan ko. May sariling galaw ang sulat ni Lucas.')],
+                    'STA_CRUZ': [('SYSTEM', 'Moonlight falls through the old shop window beside a Polaroid and cassette.'), ('JULIAN', 'Konting tiis na lang. May detalye rito na hindi pa lumilitaw sa dilim.')],
+                    'WAREHOUSE': [('SYSTEM', 'A faint figure flickers across the warehouse projector screen.'), ('JULIAN', 'Lucas? Hindi sapat na makita lang kita. Aayusin ko ito at hihingi ako ng tulong.'), ('UNKNOWN NUMBER', 'Bumalik ka sa PLM bago ka muling maubusan ng lakas ng loob.')],
+                },
+                'success': [
+                    'Kilala ko ang sulat ni Lucas. May dagdag na selyo na kailangan pang unawain. Ang krus ay humahantong sa San Agustin.',
+                    'Fort Santiago ang tinutukoy. Ang alaala ng pag-sketch namin ay tumutulong basahin ang trail.',
+                    'Escolta. Alam ng sulat ang mga lugar na pamilyar sa amin; itatabi ko ang sobre.',
+                    'Sa 94.2 FM, malinaw ang deboto at estero. Sa Quiapo ang susunod na bakas.',
+                    'Wala sa pulang marka ang pamilyar niyang stroke. Peke ito. Ang maliit na genuine mark ay patungo sa Sta. Cruz.',
+                    'Lumitaw sa moonlight ang warehouse location. Ang cassette ay may tunog malapit sa PLM. Malapit na, Lucas.',
+                    'Buhay si Lucas sa PLM courtyard. Ipapadala ko ang malinaw na recording. Tapos na ang pananahimik ko.',
+                ],
+                'failure': 'Julian, huwag hayaang takot sa pagkawala niya ang tumakip sa maliliit na detalye.',
+                'travel': 'Susundan ko ang mga detalye. Hindi pa huli para kumilos.',
+                'finale': [('ANTAGONIST', 'Nakarating ka rin, quiet boy. Lahat ito para sa taong hindi mo masabihang mahal mo?'), ('JULIAN', 'Hindi mo magagamit ang pananahimik ko laban kay Lucas. Hawak ko na ang ebidensya. Hindi ako uurong.')],
+                'choices': ['Speak up with the evidence and distract the antagonist', 'Give up the evidence in exchange for Lucas\'s safety', 'Retreat to look for someone who can speak for you'],
+                'endings': [
+                    'Julian speaks firmly and uses the evidence while security rescues Lucas. He finally steps out of the background and chooses an honest conversation. What Lucas feels in return is his to express; tonight, he is safe.',
+                    'Julian reaches Lucas and helps him escape, but incomplete proof leaves the antagonist free. He finally makes himself heard, although fear and unanswered questions linger. Their next conversation must wait until Lucas is ready.',
+                    'Julian lets the antagonist take control instead of holding to the evidence. The chance to reach Lucas slips away. His sketchbook remains in his hands as the courtyard fades and the words he prepared go unspoken.',
+                    'At zero Lakas ng Loob, Julian is overwhelmed by the thought of losing Lucas. Familiar details become impossible to interpret. He stops following the trail, unable to reach the person he hoped to speak to at last.',
+                ],
+            },
+        }
+        route = routes[name]
+        self.opening_message = ('Kung gusto mong makita siyang buhay, huwag kang tumawag sa pulis. '
+                                'Hanapin mo ang tahimik na libro at makapal na alikabok. Bilisan mo.')
+        if name == 'Clara':
+            self.opening_message += ' Bago nila madiskubre ang ebidensya sa silid mo.'
+        self.backstory = route['opening'] + [
+            ('SYSTEM', 'Your phone vibrates. An unknown number sends a message at 4:28 PM.'),
+            ('UNKNOWN NUMBER', self.opening_message),
+            (name.upper(), route['reaction']),
+        ]
+        for key, thought in zip(self.locations, route['success']):
+            self.locations[key].dialogue = route['scenes'][key]
+            self.puzzles[key].success = thought
+            self.puzzles[key].failure = route['failure']
+            self.puzzles[key].evidence.description = self.puzzles[key].evidence.description.replace("your friend's", "Lucas's").replace('Your friend', 'Lucas')
+            if self.puzzles[key].evidence.source == 'MISSING FRIEND':
+                self.puzzles[key].evidence.source = 'LUCAS'
+            for choice in self.locations[key].choices:
+                choice.result += '\n' + name + ': ' + route['travel']
+        self.route_finale = [('SYSTEM', 'PLM COURTYARD - Lucas sits restrained as you face the person behind the trail.')] + route['finale']
+        self.final_choices = route['choices']
+        self.route_endings = dict(zip(('TRUE_ENDING', 'BITTERSWEET_ENDING', 'BAD_ENDING', 'PANIC_ENDING'), route['endings']))
+
     def character_rect(self):
         sprite = self.character_images[self.character_index]
         return sprite.get_rect(midbottom=(480, 505)) if sprite else pygame.Rect(400, 200, 160, 305)
@@ -887,8 +1107,8 @@ class InvestigationGame:
         elif action == 'BACK':
             self.state = 'MENU'
         elif action == 'SELECT':
-            self.player.character = self.characters[self.character_index][0]
-            self.state = 'CHOICE_OPENING'
+            self.configure_route()
+            self.state = 'BACKSTORY'
             self.dialogue_index = 0
 
     def character_event(self, event):
@@ -923,11 +1143,36 @@ class InvestigationGame:
         pygame.draw.rect(self.screen, self.INK, (270, 552, 420, 26), border_radius=6)
         self.screen.blit(counter, counter.get_rect(center=(480, 565)))
         if self.character_info_pinned or rect.collidepoint(pygame.mouse.get_pos()):
-            self.panel(pygame.Rect(695, 190, 245, 145), self.GOLD)
-            name, traits, _ = self.characters[self.character_index]
-            self.draw_lines(name, 710, 207, 215, self.GOLD)
-            self.draw_lines(traits, 710, 240, 215, self.PAPER, self.small_font)
-            self.draw_lines('Sample profile', 710, 303, 215, self.MUTED, self.small_font)
+            self.draw_character_profile()
+
+    def draw_character_profile(self):
+        profiles = {
+            'Mateo': ('Mateo Delos Reyes', 'The Loyal Best Friend',
+                      'Childhood friends from Intramuros who promised to graduate from PLM together.'),
+            'Clara': ('Clara Gonzales', 'The Academic Rival',
+                      'Lucas is her respected academic rival. They compete for top honors, but his disappearance puts her under suspicion.'),
+            'Julian': ('Julian Mendoza', 'The Secret Admirer',
+                       'Shared a library table with Lucas for two years. He quietly admires him but has never confessed his feelings.'),
+        }
+        name, traits, _ = self.characters[self.character_index]
+        full_name, role, connection = profiles[name]
+        width = 205
+        sections = [
+            (full_name, self.font, self.GOLD, 8),
+            (role, self.small_font, self.MUTED, 16),
+            ('TRAITS', self.small_font, self.GOLD, 4),
+            (traits, self.small_font, self.PAPER, 16),
+            ('CONNECTION TO LUCAS', self.small_font, self.GOLD, 4),
+            (connection, self.small_font, self.PAPER, 0),
+        ]
+        height = 30 + sum(len(wrap_text(font, text, width)) * font.get_linesize() + gap
+                          for text, font, _, gap in sections)
+        card = pygame.Rect(710, 175, 235, height)
+        self.panel(card, self.GOLD)
+        y = card.y + 15
+        for text, font, color, gap in sections:
+            y = self.draw_lines(text, card.x + 15, y, width, color, font) + gap
+        return card
 
     def draw(self) -> None:
         if self.state == 'CHOICE_OPENING':
@@ -937,7 +1182,7 @@ class InvestigationGame:
             self.screen.blit(heading, (50, 75))
             self.panel(pygame.Rect(50, 150, 860, 130), self.GOLD)
             self.draw_lines('UNKNOWN NUMBER - 4:28 PM', 70, 165, 820, self.GOLD, self.small_font)
-            self.draw_lines(self.backstory[-1][1], 70, 195, 810, self.PAPER)
+            self.draw_lines(self.opening_message, 70, 195, 810, self.PAPER, self.small_font)
             for index, label in enumerate(['Justo Alberto Auditorium', 'University Activity Center', 'PLM Library']):
                 rect = pygame.Rect(70, 305 + index * 85, 820, 65)
                 self.panel(rect, self.MUTED)
@@ -972,7 +1217,7 @@ class InvestigationGame:
             self.screen.blit(self.title_font.render("CHOOSE YOUR CHARACTER", True, self.PAPER), (150, 130))
             self.screen.blit(self.font.render("[1] Silhouette A", True, self.GOLD), (350, 280))
             self.screen.blit(self.font.render("[2] Silhouette B", True, self.GOLD), (350, 330))
-        elif self.state in {"BACKSTORY", *self.locations, "FINALE"}:
+        elif self.state in {"INTRO", "BACKSTORY", *self.locations, "FINALE"}:
             self.draw_dialogue()
         elif self.state.startswith("PUZZLE_"):
             self.draw_puzzle()
@@ -981,10 +1226,10 @@ class InvestigationGame:
         elif self.state == "NOTICE":
             self.screen.fill(self.INK)
             self.draw_hud()
-            self.panel(pygame.Rect(110, 190, 740, 250), self.GOLD)
-            self.screen.blit(self.title_font.render("RESULT", True, self.GOLD), (355, 225))
-            self.draw_lines(self.notice, 155, 310, 650, self.PAPER)
-            self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (625, 400))
+            self.panel(pygame.Rect(90, 115, 780, 480), self.GOLD)
+            self.screen.blit(self.title_font.render("RESULT", True, self.GOLD), (355, 135))
+            self.draw_lines(self.notice, 120, 220, 720, self.PAPER)
+            self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (625, 560))
         else:
             self.draw_ending()
         if self.journal_open:
