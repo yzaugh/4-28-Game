@@ -454,11 +454,19 @@ class InvestigationGame:
         """Check an investigation puzzle, then unlock that location's travel choices."""
         location_key = self.state.removeprefix("PUZZLE_")
         puzzle = self.puzzles[location_key]
+        if not 0 <= index < len(puzzle.options):
+            return
+        if location_key in self.solved_puzzles:
+            self.state = f'CHOICE_{location_key}'
+            return
         if index == puzzle.correct_index:
             self.solved_puzzles.add(location_key)
             self.player.change_composure(5)
-            self.player.spend_time(10)
+            intuitive = self.player.character == 'Julian' and location_key in {'LIBRARY', 'QUIAPO', 'STA_CRUZ'}
+            self.player.spend_time(5 if intuitive else 10)
             self.notice = puzzle.success
+            if intuitive:
+                self.notice += '\nIntuition: saved 5 minutes (5 minutes spent).'
             if self.player.add_evidence(puzzle.evidence.name, puzzle.evidence.description, puzzle.evidence.source):
                 self.notice += f"\nEvidence added: {puzzle.evidence.name}\nLakas ng Loob +5"
             if location_key == "WAREHOUSE":
@@ -467,11 +475,14 @@ class InvestigationGame:
             self.next_after_notice = f"CHOICE_{location_key}"
             self.state = "NOTICE"
         else:
-            self.player.change_composure(-5)
+            penalty = 3 if self.player.character == 'Clara' else 5
+            self.player.change_composure(-penalty)
             self.player.spend_time(10)
             if self.check_lakas_ng_loob():
                 return
-            self.notice = f"{puzzle.failure}\nLakas ng Loob -5. Time passes."
+            self.notice = f"{puzzle.failure}\nLakas ng Loob -{penalty}. 10 minutes spent."
+            if self.player.character == 'Clara':
+                self.notice += '\nDeductive Precision: lost 2 less Lakas ng Loob.'
             self.next_after_notice = self.state
             self.state = "NOTICE"
 
@@ -498,14 +509,21 @@ class InvestigationGame:
             return
         source = self.state.removeprefix("CHOICE_")
         location = self.locations[source]
-        if index >= len(location.choices):
+        if not 0 <= index < len(location.choices):
             return
         choice = location.choices[index]
         self.player.change_composure(choice.composure_change)
-        self.player.spend_time(choice.time_cost)
+        shortcut = (self.player.character == 'Mateo' and
+                    (source, choice.next_state) in {
+                        ('LIBRARY', 'SAN_AGUSTIN'),
+                        ('SAN_AGUSTIN', 'FORT_SANTIAGO'),
+                    })
+        self.player.spend_time(max(0, choice.time_cost - (5 if shortcut else 0)))
         if self.check_lakas_ng_loob():
             return
         self.notice = choice.result
+        if shortcut:
+            self.notice += f'\nIntramuros Insight: saved 5 minutes ({choice.time_cost - 5} minutes spent).'
         if choice.evidence and self.player.add_evidence(choice.evidence.name, choice.evidence.description):
             self.notice += f"\nEvidence added: {choice.evidence.name}"
         self.state = "NOTICE"
@@ -680,7 +698,9 @@ class InvestigationGame:
             rect = pygame.Rect(70, 285 + index * 95, 820, 70)
             self.panel(rect, self.MUTED)
             self.draw_lines(f"[{index + 1}] {option}", 95, rect.y + 14, 760, self.PAPER)
-        self.screen.blit(self.small_font.render("Solve the clue. A wrong answer costs 10 minutes and 5 Lakas ng Loob.", True, self.MUTED), (185, 590))
+        penalty = 3 if self.player.character == 'Clara' else 5
+        hint = f'Wrong answer: 10 minutes and {penalty} Lakas ng Loob.'
+        self.screen.blit(self.small_font.render(hint, True, self.MUTED), (185, 590))
 
     def draw_journal(self) -> None:
         overlay = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
@@ -1148,26 +1168,33 @@ class InvestigationGame:
     def draw_character_profile(self):
         profiles = {
             'Mateo': ('Mateo Delos Reyes', 'The Loyal Best Friend',
-                      'Childhood friends from Intramuros who promised to graduate from PLM together.'),
+                      'Lucas is his childhood best friend. They promised to graduate together.'),
             'Clara': ('Clara Gonzales', 'The Academic Rival',
-                      'Lucas is her respected academic rival. They compete for top honors, but his disappearance puts her under suspicion.'),
+                      'Lucas is her academic rival. His disappearance puts her under suspicion.'),
             'Julian': ('Julian Mendoza', 'The Secret Admirer',
-                       'Shared a library table with Lucas for two years. He quietly admires him but has never confessed his feelings.'),
+                       'Lucas is his library companion and secret crush. His feelings remain unspoken.'),
         }
         name, traits, _ = self.characters[self.character_index]
         full_name, role, connection = profiles[name]
+        abilities = {
+            'Mateo': 'Street Familiarity: His familiarity with Intramuros helps him navigate its winding streets.',
+            'Clara': 'Analytical Mind: She can regain her focus and reassess the evidence when a deduction goes wrong.',
+            'Julian': 'Keen Observation: He notices subtle details that others often overlook.',
+        }
         width = 205
         sections = [
             (full_name, self.font, self.GOLD, 8),
-            (role, self.small_font, self.MUTED, 16),
+            (role, self.small_font, self.MUTED, 4),
             ('TRAITS', self.small_font, self.GOLD, 4),
-            (traits, self.small_font, self.PAPER, 16),
+            (traits, self.small_font, self.PAPER, 4),
             ('CONNECTION TO LUCAS', self.small_font, self.GOLD, 4),
-            (connection, self.small_font, self.PAPER, 0),
+            (connection, self.small_font, self.PAPER, 4),
+            ('STRENGTH', self.small_font, self.GOLD, 4),
+            (abilities[name], self.small_font, self.PAPER, 0),
         ]
         height = 30 + sum(len(wrap_text(font, text, width)) * font.get_linesize() + gap
                           for text, font, _, gap in sections)
-        card = pygame.Rect(710, 175, 235, height)
+        card = pygame.Rect(710, min(175, 545 - height), 235, height)
         self.panel(card, self.GOLD)
         y = card.y + 15
         for text, font, color, gap in sections:
