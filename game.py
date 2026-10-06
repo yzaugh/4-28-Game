@@ -224,7 +224,10 @@ class InvestigationGame:
         courtyard_restrained_path = asset_root / 'backgrounds/courtyard_restrained.png'
         if courtyard_restrained_path.exists():
             self.courtyard_restrained_background = pygame.transform.smoothscale(pygame.image.load(str(courtyard_restrained_path)).convert(), (self.WIDTH, self.HEIGHT))
-
+        self.backstory_background = None
+        backstory_background_path = asset_root / 'backgrounds/hallway_speaker.png'
+        if backstory_background_path.exists():
+            self.backstory_background = pygame.transform.smoothscale(pygame.image.load(str(path)).convert(),(self.WIDTH, self.HEIGHT))
         self.back_characters = []
         for filename in ['MATEO_back.png', 'CLARA_back.png', 'JULIAN_back.png']:
             path = asset_root / 'characters' / filename
@@ -715,6 +718,9 @@ class InvestigationGame:
                 ("SYSTEM", "The broadcast fades. Around the poster, whispers give way to silence. Someone is still waiting for Lucas to come home."),
             ]
         if self.state == "BACKSTORY":
+            back_sprite = self.back_characters[self.character_index]
+            if back_sprite:
+                self.screen.blit(back_sprite, (70,120))
             return self.backstory
         if self.state in self.locations:
             return self.locations[self.state].dialogue
@@ -1029,17 +1035,27 @@ class InvestigationGame:
         color = self.locations[self.state].color if self.state in self.locations else (47, 35, 42)
    
         #BACKGROUND image for intro and backstory
-        if self.state in {"INTRO", "BACKSTORY"} and self.plm_hallway_background:
-            self.screen.blit(self.plm_hallway_background, (0, 0))
+        if self.state in {"INTRO", "BACKSTORY"}: 
+            if self.state == "INTRO": 
+                speaker, text = self.current_dialogue()[self.dialogue_index]
+                if self.plm_hallway_background:
+                    self.screen.blit(self.plm_hallway_background, (0,0))
+
+            elif self.state == "BACKSTORY":
+                speaker, text = self.current_dialogue()[self.dialogue_index]
+
+                if speaker.upper() == "STUDENT REPORTER" and self.backstory_background:
+                    self.screen.blit(self.backstory_background, (0, 0))
+                elif self.dialogue_index == 0 and self.plm_hallway_background:
+                    self.screen.blit(self.plm_hallway_background, (0, 0))
+
         #LIBRARY
         elif self.state == "LIBRARY":
             speaker, text = self.current_dialogue()[self.dialogue_index]
             #3rd scene
             if "library stamp" in text.lower() and self.library_card_background:
-                print ("LIBRARY CARD BACKGROUND SHOWING")
                 self.screen.blit(self.library_card_background, (0, 0))  
             elif self.dialogue_index == 0 and self.library_background:
-                print ("LIBRARY BACKGROUND SHOWING")
                 self.screen.blit(self.library_background, (0, 0))
         #SAN_AGUSTIN
         elif self.state == "SAN_AGUSTIN" and self.san_agustin_background:
@@ -1080,7 +1096,7 @@ class InvestigationGame:
             self.screen.fill(color)
         
         #character_index = {"Mateo": 0, "Clara": 1, "Julian": 2}.get(self.player.character, 0)
-        if self.state in {"INTRO", "BACKSTORY"}:
+        if self.state == "INTRO":
             back_sprite = self.back_characters[self.character_index]
             if back_sprite:
                 self.screen.blit(back_sprite, (70, 120))
