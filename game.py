@@ -122,216 +122,104 @@ def clock_text(minutes: int) -> str:
     return f"{shown_hour}:{minute:02d} {suffix}"
 
 
+def make_font(names: list[str], size: int, bold: bool = False) -> pygame.font.Font:
+    for name in names:
+        path = pygame.font.match_font(name, bold=bold)
+        if path:
+            return pygame.font.Font(path, size)
+    return pygame.font.SysFont(None, size, bold=bold)
+
+
 class InvestigationGame:
-    WIDTH, HEIGHT = 960, 640
-    BLACK = (11, 13, 20)
-    INK = (20, 24, 35)
-    PANEL = (28, 34, 49)
-    PAPER = (234, 229, 212)
-    RED = (213, 70, 74)
-    GOLD = (235, 186, 78)
-    MUTED = (157, 169, 188)
+    WIDTH, HEIGHT = 960, 720
+    BLACK = (6, 7, 10)
+    INK = (12, 16, 24)
+    PANEL = (15, 20, 31)
+    PAPER = (242, 244, 247)
+    RED = (235, 76, 81)
+    GOLD = (244, 199, 103)
+    MUTED = (148, 176, 194)
+
 
     def __init__(self) -> None:
         
-        pygame.mixer.pre_init(44100, -16, 2, 512)
+        pygame.mixer.pre_init(44100, -16, 2, 2048)
         pygame.init()
+        pygame.mixer.set_num_channels(32)
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
         pygame.display.set_caption("4:28 - An Investigation RPG")
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont("consolas", 21)
-        self.small_font = pygame.font.SysFont("consolas", 16)
-        self.title_font = pygame.font.SysFont("georgia", 52, bold=True)
-        self.text_size = 21
+        self.body_fonts = ["centurygothic", "calibri", "segoeui", "sans-serif"]
+        self.ui_fonts = ["trebuchetms", "segoeui", "arial", "sans-serif"]
+        self.title_fonts = ["perpetua", "garamond", "georgia", "serif"]
+        self.font = make_font(self.body_fonts, 22)
+        self.small_font = make_font(self.ui_fonts, 17)
+        self.title_font = make_font(self.title_fonts, 50, bold=True)
+        self.text_size = 22
         # Sample names/traits only: editing these does not change the story rules.
         self.characters = [
             ('Mateo', 'Loyal, emotional, impulsive', 'MATEO.png'),
             ('Clara', 'Analytical, proud, independent', 'CLARA.png'),
             ('Julian', 'Observant, empathetic, reserved', 'JULIAN.png'),
-            ('CARETAKER', 'Fort Santiago caretaker', 'caretaker_idle.png'),
-            ('STUDENT 1', 'Student witness', 'student_one.png'),
         ]
         self.character_index = 0
         self.character_info_pinned = False
-        self.character_images = []
         asset_root = Path(__file__).resolve().parent / 'assets'
-        self.character_background = None
-        stage_path = asset_root / 'backgrounds/character_background.png'
-        if stage_path.exists():
-            self.character_background = pygame.transform.smoothscale(pygame.image.load(str(stage_path)).convert(), (self.WIDTH, self.HEIGHT))
-        for _, _, filename in self.characters:
-            path = asset_root / 'characters' / filename
-            sprite = None
-            if path.exists():
-                source = pygame.image.load(str(path)).convert_alpha()
-                bounds = source.get_bounding_rect()
-                if bounds.width and bounds.height:
-                    source = source.subsurface(bounds).copy()
-                    scale = min(240 / source.get_width(), 340 / source.get_height())
-                    sprite = pygame.transform.smoothscale(source, (round(source.get_width() * scale), round(source.get_height() * scale)))
-            self.character_images.append(sprite)
+        bg_root = asset_root / 'backgrounds'
+        char_root = asset_root / 'characters'
+
+        # ---- characters ----
+        self.character_images = [self.load_sprite(char_root / f) for _, _, f in self.characters]
+        self.back_characters = [self.load_sprite(char_root / f)
+                                for f in ['MATEO_back.png', 'CLARA_back.png', 'JULIAN_back.png']]
+        sprite_files = {
+            'anino': 'anino.png',
+            'caretaker_idle': 'caretaker_idle.png',
+            'caretaker_talk': 'caretaker_talk.png',
+            'clara_phone': 'clara_phone.png',
+            'clara_sulat': 'clara_sulat.png',
+            'julian_phone': 'julian_phone.png',
+            'julian_sulat': 'julian_sulat.png',
+            'lucas': 'LUCAS.png',
+            'mateo_bulletin': 'MATEO_bulletin.png',
+            'mateo_card': 'mateo_card.png',
+            'mateo_phone': 'mateo_phone.png',
+            'mateo_sulat': 'mateo_sulat.png',
+            'student_one': 'student_one.png',
+        }
+        self.sprites = {key: self.load_sprite(char_root / name) for key, name in sprite_files.items()}
+
         #SELF for BACKGORUNDS
-        self.plm_hallway_background = None
-        stage_path = asset_root / 'backgrounds/plm_bulletin.png'
-        if stage_path.exists():
-            self.plm_hallway_background = pygame.transform.smoothscale(pygame.image.load(str(stage_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.library_background = None
-        library_path = asset_root / 'backgrounds/plm_library.png'
-        if library_path.exists():
-            self.library_background = pygame.transform.smoothscale(pygame.image.load(str(library_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.library_card_background = None
-        card_path = asset_root / 'backgrounds/library_card.png'
-        if card_path.exists():
-            self.library_card_background = pygame.transform.smoothscale(pygame.image.load(str(card_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.plm_hallway_two_background = None
-        hallway_two_path = asset_root / 'backgrounds/plm_hallway_two.png'
-        if hallway_two_path.exists():
-            self.plm_hallway_two_background = pygame.transform.smoothscale(pygame.image.load(str(hallway_two_path)).convert(), (self.WIDTH, self.HEIGHT))
-            pygame.image.save(self.plm_hallway_two_background, str(asset_root / 'backgrounds/plm_hallway_two.png'))
-        self.san_agustin_background = None
-        san_agustin_path = asset_root / 'backgrounds/sanagustin.png'
-        if san_agustin_path.exists():
-            self.san_agustin_background = pygame.transform.smoothscale(pygame.image.load(str(san_agustin_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.fort_santiago_background = None
-        fort_santiago_path = asset_root / 'backgrounds/fortsantiago.png'
-        if fort_santiago_path.exists():
-            self.fort_santiago_background = pygame.transform.smoothscale(pygame.image.load(str(fort_santiago_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.escolta_background = None
-        escolta_path = asset_root / 'backgrounds/escolta.png'
-        if escolta_path.exists():
-            self.escolta_background = pygame.transform.smoothscale(pygame.image.load(str(escolta_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.quiapo_background = None
-        quiapo_path = asset_root / 'backgrounds/quiapo.png'
-        if quiapo_path.exists():
-            self.quiapo_background = pygame.transform.smoothscale(pygame.image.load(str(quiapo_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.stacruz_background = None
-        stacruz_path = asset_root / 'backgrounds/sta_cruz.png'
-        if stacruz_path.exists():
-            self.stacruz_background = pygame.transform.smoothscale(pygame.image.load(str(stacruz_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.plm_courtyard_background = None
-        courtyard_path = asset_root / 'backgrounds/plm_courtyard.png'
-        if courtyard_path.exists():
-            self.plm_courtyard_background = pygame.transform.smoothscale(pygame.image.load(str(courtyard_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.escolta_radio_background = None
-        escolta_radio_path = asset_root / 'backgrounds/escolta_radio.png'
-        if escolta_radio_path.exists():
-            self.escolta_radio_background = pygame.transform.smoothscale(pygame.image.load(str(escolta_radio_path)).convert(), (self.WIDTH, self.HEIGHT))   
-        self.warehouse_background = None
-        warehouse_path = asset_root / 'backgrounds/warehouse.png'
-        if warehouse_path.exists():
-            self.warehouse_background = pygame.transform.smoothscale(pygame.image.load(str(warehouse_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.courtyard_restrained_background = None
-        courtyard_restrained_path = asset_root / 'backgrounds/courtyard_restrained.png'
-        if courtyard_restrained_path.exists():
-            self.courtyard_restrained_background = pygame.transform.smoothscale(pygame.image.load(str(courtyard_restrained_path)).convert(), (self.WIDTH, self.HEIGHT))
-        self.backstory_background = None
-        backstory_background_path = asset_root / 'backgrounds/hallway_speaker.png'
-        if backstory_background_path.exists():
-            self.backstory_background = pygame.transform.smoothscale(pygame.image.load(str(path)).convert(),(self.WIDTH, self.HEIGHT))
-        self.back_characters = []
-        for filename in ['MATEO_back.png', 'CLARA_back.png', 'JULIAN_back.png']:
-            path = asset_root / 'characters' / filename
-            sprite = None
-            if path.exists():
-                source = pygame.image.load(str(path)).convert_alpha()
-                bounds = source.get_bounding_rect()
-                if bounds.width and bounds.height:
-                    source = source.subsurface(bounds).copy()
-                    scale = min(240 / source.get_width(), 340 / source.get_height())
-                    sprite = pygame.transform.smoothscale(source, (round(source.get_width() * scale), round(source.get_height() * scale)))
-            self.back_characters.append(sprite)
+        self.character_background = self.load_background(bg_root / 'character_background.png')
+        self.menu_background = self.load_background(bg_root / 'menu_background.png')
+        self.settings_background = self.load_background(bg_root / 'settings_background.png')
+        self.plm_hallway_background = self.load_background(bg_root / 'plm_bulletin.png')
+        self.plm_hallway_two_background = self.load_background(bg_root / 'plm_hallway_two.png')
+        self.backstory_background = self.load_background(bg_root / 'hallway_speaker.png')
+        self.mateo_bulletin_bg = self.load_background(self.find_asset('mateo_bulletin_bg', 'mateo_bulletin'))
+        self.mateo_and_lucas_bg = self.load_background(self.find_asset('mateo_and_lucas', 'mateo_and_lucas_bg'))
+        self.mateo_teary_bg = self.load_background(self.find_asset('mateo_teary_bg', 'mateo_teary'))
+        self.clara_and_lucas_bg = self.load_background(self.find_asset('clara_and_lucas_bg', 'clara_and_lucas'))
+        self.julian_and_lucas_bg = self.load_background(self.find_asset('julian_and_lucas_bg', 'julian_and_lucas'))
+        self.library_background = self.load_background(bg_root / 'plm_library.png')
+        self.library_card_background = self.load_background(bg_root / 'library_card.png')
+        self.san_agustin_background = self.load_background(bg_root / 'sanagustin.png')
+        self.fort_santiago_background = self.load_background(bg_root / 'fortsantiago.png')
+        self.escolta_background = self.load_background(bg_root / 'escolta.png')
+        self.escolta_radio_background = self.load_background(bg_root / 'escolta_radio.png')
+        self.quiapo_background = self.load_background(bg_root / 'quiapo.png')
+        self.stacruz_background = self.load_background(bg_root / 'sta_cruz.png')
+        self.warehouse_background = self.load_background(bg_root / 'warehouse.png')
+        self.warehouse_on_background = self.load_background(bg_root / 'warehouse_on.png')
+        self.warehouse_projector_background = self.load_background(self.find_asset('warehouse_projector_background', 'warehouse_projectoron'))
+        self.plm_courtyard_background = self.load_background(bg_root / 'plm_courtyard.png')
+        self.courtyard_restrained_background = self.load_background(bg_root / 'courtyard_restrained.png')
+        self.courtyard_captured_background = self.load_background(self.find_asset('courtyard_captured'))
 
-        self.student_one_image = None
-
-        path = asset_root / 'characters' / 'student_one.png'
-
-        if path.exists():
-            source = pygame.image.load(str(path)).convert_alpha()
-            bounds = source.get_bounding_rect()
-
-            if bounds.width and bounds.height:
-                source = source.subsurface(bounds).copy()
-                scale = min(240 / source.get_width(), 340 / source.get_height())
-
-                self.student_one_image = pygame.transform.smoothscale(
-                    source,
-                    (
-                        round(source.get_width() * scale),
-                        round(source.get_height() * scale)
-                    )
-                )
-
-
-        self.mateo_card_image = None
-        path = asset_root / 'characters' / 'mateo_card.png'
-
-        if path.exists():
-            source = pygame.image.load(str(path)).convert_alpha()
-            bounds = source.get_bounding_rect()
-
-            if bounds.width and bounds.height:
-                source = source.subsurface(bounds).copy()
-
-                scale = min(240 / source.get_width(), 340 / source.get_height())
-
-                self.mateo_card_image = pygame.transform.smoothscale(
-                    source,
-                    (
-                        round(source.get_width() * scale),
-                        round(source.get_height() * scale)
-                    )
-                )
-
-        self.mateo_sulat_image = None
-        path = asset_root / 'characters' / 'mateo_sulat.png'
-
-        if path.exists():
-            source = pygame.image.load(str(path)).convert_alpha()
-            bounds = source.get_bounding_rect()
-
-            if bounds.width and bounds.height:
-                source = source.subsurface(bounds).copy()
-                scale = min(240 / source.get_width(), 340 / source.get_height())
-
-                self.mateo_sulat_image = pygame.transform.smoothscale(
-                    source,
-                    (
-                        round(source.get_width() * scale),
-                        round(source.get_height() * scale)
-                    )
-                )
-
-        self.anino_image = None
-
-        path = asset_root / 'characters' / 'anino.png'
-
-        if path.exists():
-            source = pygame.image.load(str(path)).convert_alpha()
-            bounds = source.get_bounding_rect()
-
-            if bounds.width and bounds.height:
-                source = source.subsurface(bounds).copy()
-
-                scale = min(240 / source.get_width(), 340 / source.get_height())
-
-                self.anino_image = pygame.transform.smoothscale(
-                    source,
-                    (
-                        round(source.get_width() * scale),
-                        round(source.get_height() * scale)
-                    )
-                )
-
-
-            
         self.text_level = 50
         self.drag_slider = None
         self.focus_slider = 'text'
         self.help_page = 0
-        self.settings_background = None
-        settings_path = Path(__file__).resolve().parent / 'assets/backgrounds/settings_background.png'
-        if settings_path.exists():
-            self.settings_background = pygame.transform.smoothscale(pygame.image.load(str(settings_path)).convert(), (self.WIDTH, self.HEIGHT))
         self.volume = 0.7
         self.settings_path = Path(__file__).resolve().parent / 'settings.json'
 
@@ -385,11 +273,6 @@ class InvestigationGame:
         self.last_preview_time = -1000
         self.load_settings()
         self.high_contrast = False
-        self.menu_background = None
-        background_path = Path(__file__).resolve().parent / 'assets/backgrounds/menu_background.png'
-        if background_path.exists():
-            self.menu_background = pygame.transform.smoothscale(
-                pygame.image.load(str(background_path)).convert(), (self.WIDTH, self.HEIGHT))
         self.running = True
         self.player = Player()
         self.state = "TEASER"
@@ -411,6 +294,47 @@ class InvestigationGame:
             ("SYSTEM", "Your phone vibrates. A message from an unknown number appears."),
             ("UNKNOWN NUMBER", "Kung gusto mong makita siyang buhay, huwag kang tumawag sa pulis. Hanapin mo ang tahimik na libro at makapal na alikabok. Bilisan mo."),
         ]
+
+    def load_background(self, path):
+        """Load a 4:3 background at the window size."""
+        path = Path(path)
+        if not path.exists():
+            print("MISSING BACKGROUND:", path)
+            return None
+        img = pygame.image.load(str(path)).convert()
+        if img.get_size() != (self.WIDTH, self.HEIGHT):
+            img = pygame.transform.smoothscale(img, (self.WIDTH, self.HEIGHT))
+        return img
+
+    def find_asset(self, *stems):
+        """Find an image under assets/backgrounds or assets/characters by file name,
+        ignoring case and extension. Tries each name in order."""
+        root = Path(__file__).resolve().parent / 'assets'
+        for stem in stems:
+            for folder in ('backgrounds', 'characters'):
+                directory = root / folder
+                if not directory.exists():
+                    continue
+                for f in directory.iterdir():
+                    if f.stem.lower() == stem.lower() and f.suffix.lower() in ('.png', '.jpg', '.jpeg'):
+                        return f
+        print("MISSING ASSET (tried):", ", ".join(stems))
+        return root / 'missing_asset.png'
+
+    def load_sprite(self, path, max_w=300, max_h=340):
+        """Load a character PNG, crop to its visible pixels, scale to fit max_w x max_h."""
+        path = Path(path)
+        if not path.exists():
+            print("MISSING SPRITE:", path)
+            return None
+        source = pygame.image.load(str(path)).convert_alpha()
+        bounds = source.get_bounding_rect()
+        if not (bounds.width and bounds.height):
+            return None
+        source = source.subsurface(bounds).copy()
+        scale = min(max_w / source.get_width(), max_h / source.get_height())
+        return pygame.transform.smoothscale(
+            source, (round(source.get_width() * scale), round(source.get_height() * scale)))
 
     def start_video_teaser(self) -> None:
         """Play the exported video with its matching WAV, relative to this file."""
@@ -439,15 +363,10 @@ class InvestigationGame:
         self.teaser_started = pygame.time.get_ticks()
 
     def play_music(self, music_path, loop=-1):
-        print("=== MUSIC START ===")
-        print("STATE:", self.state)
-        print("MUSIC:", music_path)
-                   
-        pygame.mixer.music.stop()
         if music_path: 
             self.current_music = str(music_path)
             pygame.mixer.music.load(str(music_path))
-            pygame.mixer.music.set_volume(self.volume * 0.35)
+            pygame.mixer.music.set_volume(self.volume * 0.25)
             pygame.mixer.music.play(loop)
 
     def stop_investigation_audio(self):
@@ -718,9 +637,6 @@ class InvestigationGame:
                 ("SYSTEM", "The broadcast fades. Around the poster, whispers give way to silence. Someone is still waiting for Lucas to come home."),
             ]
         if self.state == "BACKSTORY":
-            back_sprite = self.back_characters[self.character_index]
-            if back_sprite:
-                self.screen.blit(back_sprite, (70,120))
             return self.backstory
         if self.state in self.locations:
             return self.locations[self.state].dialogue
@@ -890,7 +806,7 @@ class InvestigationGame:
     def handle_event(self, event: pygame.event.Event) -> None:
         if self.state == 'CHOICE_OPENING' and not self.journal_open and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             for index in range(3):
-                if pygame.Rect(70, 305 + index * 85, 820, 65).collidepoint(event.pos):
+                if pygame.Rect(70, 335 + index * 95, 820, 65).collidepoint(event.pos):
                     self.choose(index)
                     break
             return
@@ -970,16 +886,14 @@ class InvestigationGame:
             self.show_audio_status()
             if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                 next_state = self.next_after_notice
-                self.stop_investigation_audio()
+                
                 if next_state == "WAREHOUSE":
                     print("WAREHOUSE AUDIO RESET")
-
-                    pygame.mixer.music.stop()
-                    pygame.mixer.Channel(1).stop()
+                    if self.ambient_channel:
+                        self.ambient_channel.stop()
                     self.ambient_channel = None
                     
                     self.play_ambient(self.warehouse_ambience)
-                    print("WAREHOUSE AMBIENCE SHOULD BE:", self.warehouse_ambience)
                     self.stop_special_sfx()
                     self.play_special_sfx(self.projector_sound)
 
@@ -1003,24 +917,33 @@ class InvestigationGame:
             self.reset()
 
     def panel(self, rect: pygame.Rect, border: tuple[int, int, int] | None = None) -> None:
-        pygame.draw.rect(self.screen, self.PANEL, rect, border_radius=10)
-        pygame.draw.rect(self.screen, border or self.MUTED, rect, 2, border_radius=10)
+        pygame.draw.rect(self.screen, self.PANEL, rect, border_radius=8)
+        pygame.draw.rect(self.screen, border or self.MUTED, rect, 2, border_radius=8)
 
-    def draw_lines(self, text: str, x: int, y: int, width: int, color: tuple[int, int, int], font: pygame.font.Font | None = None) -> int:
+    def draw_text(self, text: str, font: pygame.font.Font, color: tuple[int, int, int],
+                  pos: tuple[int, int], shadow: bool = False) -> pygame.Rect:
+        if shadow:
+            self.screen.blit(font.render(text, True, (3, 5, 10)), (pos[0] + 2, pos[1] + 2))
+        surface = font.render(text, True, color)
+        self.screen.blit(surface, pos)
+        return surface.get_rect(topleft=pos)
+
+    def draw_lines(self, text: str, x: int, y: int, width: int, color: tuple[int, int, int],
+                   font: pygame.font.Font | None = None, shadow: bool = False) -> int:
         used_font = font or self.font
         for line in wrap_text(used_font, text, width):
-            self.screen.blit(used_font.render(line, True, color), (x, y))
+            self.draw_text(line, used_font, color, (x, y), shadow)
             y += used_font.get_linesize()
         return y
 
     def draw_hud(self) -> None:
-        pygame.draw.rect(self.screen, (8, 10, 16), (0, 0, self.WIDTH, 52))
+        pygame.draw.rect(self.screen, (5, 7, 12), (0, 0, self.WIDTH, 52))
         left = f"LAKAS NG LOOB: {self.player.composure:03d}"
         center = f"TIME: {clock_text(self.player.time_minutes)}"
         right = f"EVIDENCE: {len(self.player.evidence)}   [J] JOURNAL"
-        self.screen.blit(self.small_font.render(left, True, self.RED if self.player.composure < 35 else self.PAPER), (20, 18))
-        self.screen.blit(self.small_font.render(center, True, self.GOLD), (410, 18))
-        self.screen.blit(self.small_font.render(right, True, self.MUTED), (670, 18))
+        self.draw_text(left, self.small_font, self.RED if self.player.composure < 35 else self.PAPER, (20, 17))
+        self.draw_text(center, self.small_font, self.GOLD, (410, 17))
+        self.draw_text(right, self.small_font, self.MUTED, (750, 17))
 
     def draw_teaser(self) -> None:
         self.screen.fill((0, 0, 0))
@@ -1031,142 +954,126 @@ class InvestigationGame:
 
     def draw_dialogue(self) -> None:
         dialogue = self.current_dialogue()
+        idx = self.dialogue_index
+        speaker, text = dialogue[idx]
+        spk = speaker.upper()
+        char_name = self.characters[self.character_index][0].upper()
         title = " " if self.state in {"INTRO", "BACKSTORY"} else self.locations[self.state].title if self.state in self.locations else "PLM COURTYARD"
         color = self.locations[self.state].color if self.state in self.locations else (47, 35, 42)
-   
-        #BACKGROUND image for intro and backstory
-        if self.state in {"INTRO", "BACKSTORY"}: 
-            if self.state == "INTRO": 
-                speaker, text = self.current_dialogue()[self.dialogue_index]
-                if self.plm_hallway_background:
-                    self.screen.blit(self.plm_hallway_background, (0,0))
 
-            elif self.state == "BACKSTORY":
-                speaker, text = self.current_dialogue()[self.dialogue_index]
+        background = None
+        cutouts = []  
 
-                if speaker.upper() == "STUDENT REPORTER" and self.backstory_background:
-                    self.screen.blit(self.backstory_background, (0, 0))
-                elif self.dialogue_index == 0 and self.plm_hallway_background:
-                    self.screen.blit(self.plm_hallway_background, (0, 0))
+        # INTRO
+        if self.state == "INTRO":
+            background = self.plm_hallway_background
+            if idx == 1 and self.sprites.get("student_one"):
+                cutouts.append((self.sprites["student_one"], 600))
+            elif idx == 2:
+                background = self.backstory_background or self.plm_hallway_background  
 
-        #LIBRARY
-        elif self.state == "LIBRARY":
-            speaker, text = self.current_dialogue()[self.dialogue_index]
-            #3rd scene
-            if "library stamp" in text.lower() and self.library_card_background:
-                self.screen.blit(self.library_card_background, (0, 0))  
-            elif self.dialogue_index == 0 and self.library_background:
-                self.screen.blit(self.library_background, (0, 0))
-        #SAN_AGUSTIN
-        elif self.state == "SAN_AGUSTIN" and self.san_agustin_background:
-            self.screen.blit(self.san_agustin_background, (0, 0))
-        #FORT_SANTIAGO
-        elif self.state == "FORT_SANTIAGO" and self.fort_santiago_background:
-            self.screen.blit(self.fort_santiago_background, (0, 0))
-        #STA_CRUZ
-        elif self.state == "STA_CRUZ" and self.stacruz_background:
-            self.screen.blit(self.stacruz_background, (0, 0))
-        #QUIAPO
-        elif self.state == "QUIAPO" and self.quiapo_background:
-            self.screen.blit(self.quiapo_background, (0, 0))
-        #ESCOLTA
-        elif self.state == "ESCOLTA":
-            if self.dialogue_index == 0 and self.escolta_radio_background:
-                print ("ESCOLTA RADIO BACKGROUND SHOWING")
-                self.screen.blit(self.escolta_radio_background, (0, 0))
-            elif self.dialogue_index >= 1 and self.escolta_background:
-                print ("ESCOLTA RADIO BACKGROUND SHOWING")
-                self.screen.blit(self.escolta_background, (0, 0))
-        #WAREHOUSE
-        elif self.state == "WAREHOUSE" and self.warehouse_background:
-            self.screen.blit(self.warehouse_background, (0, 0))
-        #PLM COURTYARD
-        elif self.state == "FINALE":
-            if self.dialogue_index == 0 and self.plm_courtyard_background:
-                print ("COURTYARD RESTRAINED BACKGROUND SHOWING")
-                self.screen.blit(self.plm_courtyard_background, (0, 0))
-            elif self.dialogue_index >= 1 and self.courtyard_restrained_background:
-                print ("COURTYARD RESTRAINED BACKGROUND SHOWING")
-                self.screen.blit(self.courtyard_restrained_background, (0, 0))
+        # BACKSTORY per-route storyboard by line index
+        elif self.state == "BACKSTORY":
+            background = self.plm_hallway_background
+            back = self.back_characters[self.character_index]
+            cutout = None
+            cutout_x = 70
+            phone_start = next((i for i, (_, line) in enumerate(dialogue)
+                                if "phone vibrates" in line.lower()), len(dialogue))
+            phone_line = idx >= phone_start
+            if char_name == "MATEO":
+                if idx == 0:
+                    background = self.mateo_bulletin_bg or background
+                elif idx == 4:
+                    background = self.mateo_and_lucas_bg or background
+                elif idx == 2:
+                    cutout, cutout_x = self.sprites.get("student_one"), 600
+                elif idx == 3:
+                    background = self.mateo_teary_bg or background
+                elif phone_line:
+                    cutout = self.sprites.get("mateo_phone") or back
+                else:
+                    cutout = back
+            elif char_name == "CLARA":
+                if idx == 2:
+                    background = self.clara_and_lucas_bg or background
+                elif phone_line:
+                    cutout = self.sprites.get("clara_phone") or self.sprites.get("clara_sulat") or back
+                else:
+                    cutout = back
+            elif char_name == "JULIAN":
+                if idx == 2:
+                    background = self.julian_and_lucas_bg or background
+                elif phone_line:
+                    cutout = self.sprites.get("julian_phone") or self.sprites.get("julian_sulat") or back
+                else:
+                    cutout = back
+            if cutout:
+                cutouts.append((cutout, cutout_x))
 
-        elif self.state == "FINALE" and self.plm_hallway_two_background:
-            self.screen.blit(self.plm_hallway_two_background, (0, 0))
+        # LOCATIONS + FINALE
+        else:
+            if self.state == "LIBRARY":
+                card = self.library_card_background if "library stamp" in text.lower() else None
+                background = card or self.library_background
+            elif self.state == "SAN_AGUSTIN":
+                background = self.san_agustin_background
+            elif self.state == "FORT_SANTIAGO":
+                background = self.fort_santiago_background
+            elif self.state == "ESCOLTA":
+                background = (self.escolta_radio_background if idx == 0 else self.escolta_background) or self.escolta_background
+            elif self.state == "QUIAPO":
+                background = self.quiapo_background
+            elif self.state == "STA_CRUZ":
+                background = self.stacruz_background
+            elif self.state == "WAREHOUSE":
+                if idx >= 2:
+                    background = self.warehouse_projector_background    
+                elif idx == 1:
+                    background = self.warehouse_on_background           
+                background = background or self.warehouse_background
+            elif self.state == "FINALE":
+                if idx == 0:
+                    background = self.plm_courtyard_background
+                background = background or self.courtyard_restrained_background
+            sprite = None
+            sprite_x = 600
+            if spk == "UNKNOWN NUMBER" and self.state == "ESCOLTA":
+                sprite = self.sprites.get("anino")
+                sprite_x = 640
+            elif spk in ("MATEO", "CLARA", "JULIAN"):
+                if spk == "MATEO" and self.state == "SAN_AGUSTIN":
+                    sprite = self.sprites.get("mateo_card")
+                elif self.state == "FORT_SANTIAGO":
+                    sprite = self.sprites.get(f"{spk.lower()}_sulat")
+                sprite = sprite or self.character_images[{"MATEO": 0, "CLARA": 1, "JULIAN": 2}[spk]]
+            elif spk == "CARETAKER":
+                sprite = self.sprites.get("caretaker_idle") or self.sprites.get("caretaker_talk")
+                sprite_x = 550
+            elif spk == "STUDENT 1":
+                sprite = self.sprites.get("student_one")
+            elif spk == "LUCAS":
+                sprite = self.sprites.get("lucas")
 
+            if sprite:
+                cutouts.append((sprite, sprite_x))
+
+        # DRAW
+        if background:
+            self.screen.blit(background, (0, 0))
         else:
             self.screen.fill(color)
-        
-        #character_index = {"Mateo": 0, "Clara": 1, "Julian": 2}.get(self.player.character, 0)
-        if self.state == "INTRO":
-            back_sprite = self.back_characters[self.character_index]
-            if back_sprite:
-                self.screen.blit(back_sprite, (70, 120))
 
-        speaker, text = dialogue[self.dialogue_index]
+        for surface, x in cutouts:
+            self.screen.blit(surface, (x, 460 - surface.get_height()))   # base sits on the panel's top edge
 
-        character_map = {"Mateo": 0, "MATEO": 0, "Clara": 1, "CLARA": 1,  "Julian": 2,"JULIAN": 2, "CARETAKER": 3, "STUDENT 1": 4,}
-        
-        sprite = None
-        print("CURRENT:", speaker, self.state)
-        if self.state not in {"INTRO", "BACKSTORY"}:
-
-            if speaker.upper() == "UNKNOWN NUMBER" and self.state == "ESCOLTA":
-                print("USING ANINO")
-                sprite = self.anino_image
-
-            elif speaker.upper() == "MATEO":
-                if self.state == "SAN_AGUSTIN":
-                    print("USING CARD IMAGE")
-                    sprite = self.mateo_card_image
-
-                elif self.state == "FORT_SANTIAGO":
-                    print("USING SULAT IMAGE")
-                    sprite = self.mateo_sulat_image
-                    print("SULAT SPRITE:", sprite)
-
-                else: 
-                    print("normal mateo")
-                    sprite = self.character_images[0]
-
-            elif speaker.upper() == "CARETAKER":
-                sprite = self.character_images[3]
-
-            elif speaker in character_map:
-                sprite = self.character_images[character_map[speaker]]
-  
-        no_character_scenes = {
-            "HALLWAY_SPEAKER"
-        }
-
-        if self.state not in no_character_scenes:
-            if sprite:
-                if speaker == "CARETAKER":
-                    self.screen.blit(sprite, (550,160))
-                else:
-                    self.screen.blit(sprite, (600,100))
-
-        if speaker == "STUDENT 1":
-            sprite = self.student_one_image
-
-            if sprite:
-                if speaker.upper() == "UNKNOWN NUMBER":
-                    self.screen.blit(sprite, (360, 100))
-
-                elif speaker == "CARETAKER":
-                    self.screen.blit(sprite, (550,160))
-
-                else:
-                    self.screen.blit(sprite, (600,100))
-
-        
-
-        print(self.state)
         self.draw_hud()
-        self.screen.blit(self.title_font.render(title, True, self.PAPER), (40, 78))
-        self.panel(pygame.Rect(45, 390, 870, 225), self.GOLD)
-        speaker, text = dialogue[self.dialogue_index]
-        self.screen.blit(self.font.render(speaker, True, self.GOLD), (70, 410))
-        self.draw_lines(text, 70, 445, 820, self.PAPER)
-        self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (745, 590))
+        self.draw_text(title, self.title_font, self.PAPER, (40, 78), shadow=True)
+        self.panel(pygame.Rect(45, 460, 870, 225), self.GOLD)
+        self.draw_text(speaker, self.font, self.GOLD, (70, 480))
+        self.draw_lines(text, 70, 515, 820, self.PAPER)
+        self.draw_text("[SPACE] continue", self.small_font, self.MUTED, (745, 655))
+
 
     def draw_choice(self) -> None:
         if self.state == "FINAL_CHOICE":
@@ -1198,14 +1105,15 @@ class InvestigationGame:
         else:
             title = self.locations[source].title
             choices = [choice.label for choice in self.locations[source].choices]
-        self.screen.blit(self.title_font.render(title, True, self.PAPER), (45, 100))
-        self.draw_lines("Choose carefully. Choices cost time and affect your Lakas ng Loob; they are not forced retries.", 48, 180, 840, self.MUTED)
+        self.draw_text(title, self.title_font, self.PAPER, (45, 100), shadow=True)
+        self.draw_lines("Choose carefully. Choices cost time and affect your Lakas ng Loob; they are not forced retries.",
+                        48, 180, 840, self.MUTED, shadow=True)
         for index, label in enumerate(choices):
-            rect = pygame.Rect(70, 255 + index * 100, 820, 75)
+            rect = pygame.Rect(70, 275 + index * 95, 820, 65)
             # Every route must look equally possible.  Never highlight option 1,
             # because that would accidentally reveal the intended route.
             self.panel(rect, self.MUTED)
-            self.draw_lines(f"[{index + 1}] {label}", 95, rect.y + 16, 760, self.PAPER)
+            self.draw_lines(f"[{index + 1}] {label}", 95, rect.y + 18, 790, self.PAPER)
 
     def draw_puzzle(self) -> None:
         """Draw a dedicated puzzle screen instead of treating it as ordinary dialogue."""
@@ -1230,16 +1138,18 @@ class InvestigationGame:
         else:
             self.screen.fill(color)
         self.draw_hud()
-        self.screen.blit(self.title_font.render(" ", True, self.PAPER), (45, 78))
-        self.screen.blit(self.font.render(puzzle.title, True, self.GOLD), (50, 155))
-        self.draw_lines(puzzle.prompt, 50, 190, 840, self.PAPER)
+        self.panel(pygame.Rect(45, 128, 870, 130), self.GOLD)
+        self.draw_text(puzzle.title, self.font, self.GOLD, (70, 150))
+        self.draw_lines(puzzle.prompt, 70, 188, 820, self.PAPER)
         for index, option in enumerate(puzzle.options):
-            rect = pygame.Rect(70, 285 + index * 95, 820, 70)
+            rect = pygame.Rect(70, 335 + index * 95, 820, 65)
             self.panel(rect, self.MUTED)
-            self.draw_lines(f"[{index + 1}] {option}", 95, rect.y + 14, 760, self.PAPER)
+            self.draw_lines(f"[{index + 1}] {option}", 95, rect.y + 18, 790, self.PAPER)
         penalty = 3 if self.player.character == 'Clara' else 5
         hint = f'Wrong answer: 10 minutes and {penalty} Lakas ng Loob.'
-        self.screen.blit(self.small_font.render(hint, True, self.MUTED), (185, 590))
+        text_w = self.small_font.size(hint)[0]
+        text_x = (self.WIDTH - text_w) // 2
+        self.draw_text(hint, self.small_font, self.MUTED, (text_x, 665), shadow=True)
 
     def draw_journal(self) -> None:
         overlay = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
@@ -1255,7 +1165,7 @@ class InvestigationGame:
         for item in self.player.evidence:
             self.screen.blit(self.font.render(f"- {item.name} [{item.source}]", True, self.RED), (145, y))
             y = self.draw_lines(item.description, 170, y + 26, 630, self.INK, self.small_font) + 14
-        self.screen.blit(self.small_font.render("[J] or [ESC] close journal", True, self.INK), (570, 550))
+        self.screen.blit(self.small_font.render("[J] or [ESC] close journal", True, self.INK), (630, 535))
 
     def draw_ending(self) -> None:
         endings = {
@@ -1267,10 +1177,17 @@ class InvestigationGame:
         title, _ = endings[self.state]
         description = self.route_endings[self.state]
         self.screen.fill((32, 15, 21))
+        if self.state == "TRUE_ENDING" and self.courtyard_captured_background:
+            self.screen.blit(self.courtyard_captured_background, (0, 0))
+            shade = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
+            shade.fill((0, 0, 0, 150))
+            self.screen.blit(shade, (0, 0))
         title_surface = self.title_font.render(title, True, self.RED)
-        self.screen.blit(title_surface, title_surface.get_rect(center=(self.WIDTH // 2, 205)))
-        self.draw_lines(description, 170, 285, 620, self.PAPER)
-        self.screen.blit(self.font.render("[R] Restart", True, self.GOLD), (400, 580))
+        title_rect = title_surface.get_rect(center=(self.WIDTH // 2, 205))
+        self.draw_text(title, self.title_font, self.RED, title_rect.topleft, shadow=True)
+        self.panel(pygame.Rect(145, 265, 670, 205), self.GOLD)
+        self.draw_lines(description, 170, 295, 620, self.PAPER)
+        self.draw_text("[R] Restart", self.font, self.GOLD, (400, 580), shadow=True)
 
     def ui_buttons(self) -> dict:
         if self.state == 'MENU':
@@ -1324,9 +1241,9 @@ class InvestigationGame:
         value = max(1, min(100, round(value)))
         if name == 'text':
             # Snap to real pixel sizes: each selectable step looks different.
-            self.text_size = round(16 + (value - 1) * 8 / 99)
-            self.text_level = round(1 + (self.text_size - 16) * 99 / 8)
-            self.font = pygame.font.SysFont('consolas', self.text_size)
+            self.text_size = round(18 + (value - 1) * 8 / 99)
+            self.text_level = round(1 + (self.text_size - 18) * 99 / 8)
+            self.font = make_font(self.body_fonts, self.text_size)
         else:
             self.volume = value / 100
             if pygame.mixer.get_init():
@@ -1414,7 +1331,7 @@ class InvestigationGame:
             pygame.draw.rect(self.screen, self.GOLD, box, 3, border_radius=12)
             title = self.title_font.render('HOW TO PLAY', True, self.GOLD)
             self.screen.blit(title, title.get_rect(center=(480, 92)))
-            tutorial_font = pygame.font.SysFont('consolas', 20)
+            tutorial_font = make_font(self.ui_fonts, 20)
             body = (
                 "OBJECTIVE:\n"
                 "Investigate your friend's disappearance before time runs out.\n\n"
@@ -1463,13 +1380,13 @@ class InvestigationGame:
         elif action == 'BACK':
             self.state = 'MENU'
         elif action.startswith('TEXT'):
-            self.text_size = max(18, min(23, self.text_size + (1 if action.endswith('+') else -1)))
-            self.font = pygame.font.SysFont('consolas', self.text_size)
+            self.text_size = max(18, min(26, self.text_size + (1 if action.endswith('+') else -1)))
+            self.font = make_font(self.body_fonts, self.text_size)
         elif action == 'CONTRAST':
             self.high_contrast = not self.high_contrast
-            self.PAPER = (255, 255, 255) if self.high_contrast else (234, 229, 212)
-            self.MUTED = (225, 225, 225) if self.high_contrast else (157, 169, 188)
-            self.PANEL = (0, 0, 0) if self.high_contrast else (28, 34, 49)
+            self.PAPER = (255, 255, 255) if self.high_contrast else (248, 241, 222)
+            self.MUTED = (225, 225, 225) if self.high_contrast else (184, 194, 208)
+            self.PANEL = (0, 0, 0) if self.high_contrast else (18, 23, 35)
         elif action.startswith('VOLUME'):
             self.volume = round(max(0, min(1, self.volume + (0.1 if action.endswith('+') else -0.1))), 1)
             if pygame.mixer.get_init():
@@ -1484,12 +1401,13 @@ class InvestigationGame:
             self.screen.blit(title, title.get_rect(center=(480, 210)))
         else:
             title = self.title_font.render('GAME SETTINGS', True, self.PAPER)
-            self.screen.blit(title, title.get_rect(center=(480, 110)))
+            self.draw_text('GAME SETTINGS', self.title_font, self.PAPER, title.get_rect(center=(480, 110)).topleft,
+                           shadow=True)
             for text, y in [(f'Text size: {self.text_size}', 190),
                             ('Contrast: ' + ('High' if self.high_contrast else 'Normal'), 280),
                             (f'Volume: {round(self.volume * 100)}%', 390)]:
                 surface = self.font.render(text, True, self.PAPER)
-                self.screen.blit(surface, surface.get_rect(center=(480, y)))
+                self.draw_text(text, self.font, self.PAPER, surface.get_rect(center=(480, y)).topleft, shadow=True)
         for label, rect in self.ui_buttons().items():
             hovered = rect.collidepoint(pygame.mouse.get_pos())
             pygame.draw.rect(self.screen, (95, 15, 20) if hovered else (20, 16, 17), rect, border_radius=5)
@@ -1498,7 +1416,7 @@ class InvestigationGame:
             self.screen.blit(surface, surface.get_rect(center=rect.center))
         hint = 'Click or use [1] [2] [3]' if self.state == 'MENU' else 'Click or use [1]-[6] | ESC: back'
         surface = self.small_font.render(hint, True, self.PAPER)
-        self.screen.blit(surface, surface.get_rect(center=(480, 570)))
+        self.draw_text(hint, self.small_font, self.PAPER, surface.get_rect(center=(480, 570)).topleft, shadow=True)
 
     def configure_route(self):
         name = self.characters[self.character_index][0]
@@ -1651,13 +1569,14 @@ class InvestigationGame:
 
     def character_rect(self):
         sprite = self.character_images[self.character_index]
-        return sprite.get_rect(midbottom=(480, 505)) if sprite else pygame.Rect(400, 200, 160, 305)
+        return sprite.get_rect(midbottom=(480, 565)) if sprite else pygame.Rect(400, 260, 160, 305)
+
 
     def character_buttons(self):
-        return {'<': pygame.Rect(260, 310, 60, 60),
-                '>': pygame.Rect(640, 310, 60, 60),
-                'BACK': pygame.Rect(260, 582, 170, 42),
-                'SELECT': pygame.Rect(530, 582, 170, 42)}
+        return {'<': pygame.Rect(260, 350, 60, 60),
+                '>': pygame.Rect(640, 350, 60, 60),
+                'BACK': pygame.Rect(260, 650, 170, 42),
+                'SELECT': pygame.Rect(530, 650, 170, 42)}
 
     def character_action(self, action):
         if action in ('<', '>'):
@@ -1702,9 +1621,10 @@ class InvestigationGame:
             pygame.draw.ellipse(self.screen, self.MUTED, rect)
         for label, button in self.character_buttons().items():
             self.settings_button(label, button)
-        counter = self.small_font.render(f'{self.character_index + 1} / {len(self.characters)}   |   Hover or click for traits', True, self.PAPER)
-        pygame.draw.rect(self.screen, self.INK, (270, 552, 420, 26), border_radius=6)
-        self.screen.blit(counter, counter.get_rect(center=(480, 565)))
+        counter = self.small_font.render(f'{self.character_index + 1} / 3   |   Hover or click for traits', True, self.PAPER)
+        pygame.draw.rect(self.screen, self.INK, (270, 615, 420, 26), border_radius=6)
+        self.screen.blit(counter, counter.get_rect(center=(480, 628)))
+
         if self.character_info_pinned or rect.collidepoint(pygame.mouse.get_pos()):
             self.draw_character_profile()
 
@@ -1737,7 +1657,7 @@ class InvestigationGame:
         ]
         height = 30 + sum(len(wrap_text(font, text, width)) * font.get_linesize() + gap
                           for text, font, _, gap in sections)
-        card = pygame.Rect(710, min(175, 545 - height), 235, height)
+        card = pygame.Rect(710, min(175, 625 - height), 235, height)
         self.panel(card, self.GOLD)
         y = card.y + 15
         for text, font, color, gap in sections:
@@ -1752,16 +1672,18 @@ class InvestigationGame:
                 self.screen.fill(self.INK)  
 
             self.draw_hud()
-            heading = self.title_font.render('THE FIRST CLUE', True, self.PAPER)
-            self.screen.blit(heading, (50, 75))
-            self.panel(pygame.Rect(50, 150, 860, 130), self.GOLD)
-            self.draw_lines('UNKNOWN NUMBER - 4:28 PM', 70, 165, 820, self.GOLD, self.small_font)
-            self.draw_lines(self.opening_message, 70, 195, 810, self.PAPER, self.small_font)
+            self.draw_text('THE FIRST CLUE', self.title_font, self.PAPER, (50, 65), shadow=True)
+            
+            self.panel(pygame.Rect(50, 140, 860, 160), self.GOLD)
+            self.draw_lines('UNKNOWN NUMBER - 4:28 PM', 70, 150, 820, self.GOLD, self.small_font)
+            self.draw_lines(self.opening_message, 70, 185, 810, self.PAPER)
+            
             for index, label in enumerate(['Justo Alberto Auditorium', 'University Activity Center', 'PLM Library']):
-                rect = pygame.Rect(70, 305 + index * 85, 820, 65)
+                rect = pygame.Rect(70, 335 + index * 95, 820, 65)
                 self.panel(rect, self.MUTED)
                 self.draw_lines(f'[{index + 1}] {label}', 95, rect.y + 18, 760, self.PAPER)
-            self.draw_lines('Saan kaya ito? Click a location or press 1, 2, or 3.', 70, 565, 820, self.MUTED, self.small_font)
+            self.draw_lines('Saan kaya ito? Click a location or press 1, 2, or 3.',
+                            70, 650, 820, self.MUTED, self.small_font, shadow=True)
             if self.journal_open:
                 self.draw_journal()
             pygame.display.flip()
@@ -1785,15 +1707,16 @@ class InvestigationGame:
                 self.play_menu_music()
                 self.menu_music_started = True
             self.screen.fill(self.BLACK)
-            self.screen.blit(self.title_font.render("4:28", True, self.RED), (380, 150))
-            self.draw_lines("A fictional investigation RPG set around PLM and Intramuros. All characters and events are fictional.", 230, 235, 550, self.MUTED)
-            self.screen.blit(self.font.render("[1] START INVESTIGATION", True, self.PAPER), (345, 330))
-            self.screen.blit(self.small_font.render("[ESC] quit", True, self.MUTED), (420, 380))
+            self.draw_text("4:28", self.title_font, self.RED, (380, 150), shadow=True)
+            self.draw_lines("A fictional investigation RPG set around PLM and Intramuros. All characters and events are fictional.",
+                            230, 235, 550, self.MUTED, shadow=True)
+            self.draw_text("[1] START INVESTIGATION", self.font, self.PAPER, (345, 330), shadow=True)
+            self.draw_text("[ESC] quit", self.small_font, self.MUTED, (420, 380), shadow=True)
         elif self.state == "CHARACTER":
             self.screen.fill(self.INK)
-            self.screen.blit(self.title_font.render("CHOOSE YOUR CHARACTER", True, self.PAPER), (150, 130))
-            self.screen.blit(self.font.render("[1] Silhouette A", True, self.GOLD), (350, 280))
-            self.screen.blit(self.font.render("[2] Silhouette B", True, self.GOLD), (350, 330))
+            self.draw_text("CHOOSE YOUR CHARACTER", self.title_font, self.PAPER, (150, 130), shadow=True)
+            self.draw_text("[1] Silhouette A", self.font, self.GOLD, (350, 280))
+            self.draw_text("[2] Silhouette B", self.font, self.GOLD, (350, 330))
         elif self.state in {"INTRO", "BACKSTORY", *self.locations, "FINALE"}:
             self.draw_dialogue()
         elif self.state.startswith("PUZZLE_"):
@@ -1801,42 +1724,39 @@ class InvestigationGame:
         elif self.state.startswith("CHOICE_") or self.state == "FINAL_CHOICE":
             self.draw_choice()
         elif self.state == "NOTICE":
-            #show the next location bg
+            # show the next location bg
             if self.next_after_notice in {"CHOICE_OPENING", "INTRAMUROS"} and self.plm_hallway_two_background:
                 self.screen.blit(self.plm_hallway_two_background, (0, 0))
-
             elif self.next_after_notice in {"LIBRARY", "CHOICE_LIBRARY", "PUZZLE_LIBRARY"} and self.library_background:
                 self.screen.blit(self.library_background, (0, 0))
-
             elif self.next_after_notice in {"SAN_AGUSTIN", "CHOICE_SAN_AGUSTIN", "PUZZLE_SAN_AGUSTIN"} and self.san_agustin_background:
                 self.screen.blit(self.san_agustin_background, (0, 0))
-
             elif self.next_after_notice in {"FORT_SANTIAGO", "CHOICE_FORT_SANTIAGO", "PUZZLE_FORT_SANTIAGO"} and self.fort_santiago_background:
                 self.screen.blit(self.fort_santiago_background, (0, 0))
-
             elif self.next_after_notice in {"ESCOLTA", "CHOICE_ESCOLTA", "PUZZLE_ESCOLTA"} and self.escolta_background:
                 print("NEXT LOCATION:", self.next_after_notice)
                 self.screen.blit(self.escolta_background, (0, 0))
-
             elif self.next_after_notice in {"QUIAPO", "CHOICE_QUIAPO", "PUZZLE_QUIAPO"} and self.quiapo_background:
                 self.screen.blit(self.quiapo_background, (0, 0))
-
             elif self.next_after_notice in {"STA_CRUZ", "CHOICE_STA_CRUZ", "PUZZLE_STA_CRUZ"} and self.stacruz_background:
                 self.screen.blit(self.stacruz_background, (0, 0))
-
             elif self.next_after_notice in {"WAREHOUSE", "CHOICE_WAREHOUSE", "PUZZLE_WAREHOUSE"} and self.warehouse_background:
                 self.screen.blit(self.warehouse_background, (0, 0))
-
             elif self.next_after_notice in {"FINALE", "CHOICE_FINALE"} and self.plm_courtyard_background:
                 self.screen.blit(self.plm_courtyard_background, (0, 0))
-
             else:
                 self.screen.fill(self.INK)
             self.draw_hud()
-            self.panel(pygame.Rect(90, 115, 780, 480), self.GOLD)
-            self.screen.blit(self.title_font.render("RESULT", True, self.GOLD), (355, 135))
+            self.panel(pygame.Rect(90, 115, 780, 540), self.GOLD)
+        
+            title_surface = self.title_font.render("RESULT", True, self.GOLD)
+            title_x = (self.WIDTH - title_surface.get_width()) // 2
+            self.screen.blit(title_surface, (title_x, 135))
+            
             self.draw_lines(self.notice, 120, 220, 720, self.PAPER)
-            self.screen.blit(self.small_font.render("[SPACE] continue", True, self.MUTED), (625, 560))
+            continue_surface = self.small_font.render("[SPACE] continue", True, self.MUTED)
+            continue_x = 865 - continue_surface.get_width()
+            self.screen.blit(continue_surface, (continue_x, 620))
         else:
             self.draw_ending()
         if self.journal_open:
