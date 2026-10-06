@@ -66,6 +66,7 @@ class Choice:
     label: str
     result: str
     next_state: str
+    correct: bool 
     composure_change: int = 0
     time_cost: int = 15
     evidence: Evidence | None = None
@@ -144,9 +145,11 @@ class InvestigationGame:
         self.text_size = 21
         # Sample names/traits only: editing these does not change the story rules.
         self.characters = [
-            ('Mateo', 'Loyal, emotional, impulsive', 'sample_marco.png'),
-            ('Clara', 'Analytical, proud, independent', 'sample_mika.png'),
-            ('Julian', 'Observant, empathetic, reserved', 'sample_eli.png'),
+            ('Mateo', 'Loyal, emotional, impulsive', 'MATEO.png'),
+            ('Clara', 'Analytical, proud, independent', 'CLARA.png'),
+            ('Julian', 'Observant, empathetic, reserved', 'JULIAN.png'),
+            ('CARETAKER', 'Fort Santiago caretaker', 'caretaker_idle.png'),
+            ('STUDENT 1', 'Student witness', 'student_one.png'),
         ]
         self.character_index = 0
         self.character_info_pinned = False
@@ -167,6 +170,157 @@ class InvestigationGame:
                     scale = min(240 / source.get_width(), 340 / source.get_height())
                     sprite = pygame.transform.smoothscale(source, (round(source.get_width() * scale), round(source.get_height() * scale)))
             self.character_images.append(sprite)
+        #SELF for BACKGORUNDS
+        self.plm_hallway_background = None
+        stage_path = asset_root / 'backgrounds/plm_bulletin.png'
+        if stage_path.exists():
+            self.plm_hallway_background = pygame.transform.smoothscale(pygame.image.load(str(stage_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.library_background = None
+        library_path = asset_root / 'backgrounds/plm_library.png'
+        if library_path.exists():
+            self.library_background = pygame.transform.smoothscale(pygame.image.load(str(library_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.library_card_background = None
+        card_path = asset_root / 'backgrounds/library_card.png'
+        if card_path.exists():
+            self.library_card_background = pygame.transform.smoothscale(pygame.image.load(str(card_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.plm_hallway_two_background = None
+        hallway_two_path = asset_root / 'backgrounds/plm_hallway_two.png'
+        if hallway_two_path.exists():
+            self.plm_hallway_two_background = pygame.transform.smoothscale(pygame.image.load(str(hallway_two_path)).convert(), (self.WIDTH, self.HEIGHT))
+            pygame.image.save(self.plm_hallway_two_background, str(asset_root / 'backgrounds/plm_hallway_two.png'))
+        self.san_agustin_background = None
+        san_agustin_path = asset_root / 'backgrounds/sanagustin.png'
+        if san_agustin_path.exists():
+            self.san_agustin_background = pygame.transform.smoothscale(pygame.image.load(str(san_agustin_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.fort_santiago_background = None
+        fort_santiago_path = asset_root / 'backgrounds/fortsantiago.png'
+        if fort_santiago_path.exists():
+            self.fort_santiago_background = pygame.transform.smoothscale(pygame.image.load(str(fort_santiago_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.escolta_background = None
+        escolta_path = asset_root / 'backgrounds/escolta.png'
+        if escolta_path.exists():
+            self.escolta_background = pygame.transform.smoothscale(pygame.image.load(str(escolta_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.quiapo_background = None
+        quiapo_path = asset_root / 'backgrounds/quiapo.png'
+        if quiapo_path.exists():
+            self.quiapo_background = pygame.transform.smoothscale(pygame.image.load(str(quiapo_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.stacruz_background = None
+        stacruz_path = asset_root / 'backgrounds/sta_cruz.png'
+        if stacruz_path.exists():
+            self.stacruz_background = pygame.transform.smoothscale(pygame.image.load(str(stacruz_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.plm_courtyard_background = None
+        courtyard_path = asset_root / 'backgrounds/plm_courtyard.png'
+        if courtyard_path.exists():
+            self.plm_courtyard_background = pygame.transform.smoothscale(pygame.image.load(str(courtyard_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.escolta_radio_background = None
+        escolta_radio_path = asset_root / 'backgrounds/escolta_radio.png'
+        if escolta_radio_path.exists():
+            self.escolta_radio_background = pygame.transform.smoothscale(pygame.image.load(str(escolta_radio_path)).convert(), (self.WIDTH, self.HEIGHT))   
+        self.warehouse_background = None
+        warehouse_path = asset_root / 'backgrounds/warehouse.png'
+        if warehouse_path.exists():
+            self.warehouse_background = pygame.transform.smoothscale(pygame.image.load(str(warehouse_path)).convert(), (self.WIDTH, self.HEIGHT))
+        self.courtyard_restrained_background = None
+        courtyard_restrained_path = asset_root / 'backgrounds/courtyard_restrained.png'
+        if courtyard_restrained_path.exists():
+            self.courtyard_restrained_background = pygame.transform.smoothscale(pygame.image.load(str(courtyard_restrained_path)).convert(), (self.WIDTH, self.HEIGHT))
+
+        self.back_characters = []
+        for filename in ['MATEO_back.png', 'CLARA_back.png', 'JULIAN_back.png']:
+            path = asset_root / 'characters' / filename
+            sprite = None
+            if path.exists():
+                source = pygame.image.load(str(path)).convert_alpha()
+                bounds = source.get_bounding_rect()
+                if bounds.width and bounds.height:
+                    source = source.subsurface(bounds).copy()
+                    scale = min(240 / source.get_width(), 340 / source.get_height())
+                    sprite = pygame.transform.smoothscale(source, (round(source.get_width() * scale), round(source.get_height() * scale)))
+            self.back_characters.append(sprite)
+
+        self.student_one_image = None
+
+        path = asset_root / 'characters' / 'student_one.png'
+
+        if path.exists():
+            source = pygame.image.load(str(path)).convert_alpha()
+            bounds = source.get_bounding_rect()
+
+            if bounds.width and bounds.height:
+                source = source.subsurface(bounds).copy()
+                scale = min(240 / source.get_width(), 340 / source.get_height())
+
+                self.student_one_image = pygame.transform.smoothscale(
+                    source,
+                    (
+                        round(source.get_width() * scale),
+                        round(source.get_height() * scale)
+                    )
+                )
+
+
+        self.mateo_card_image = None
+        path = asset_root / 'characters' / 'mateo_card.png'
+
+        if path.exists():
+            source = pygame.image.load(str(path)).convert_alpha()
+            bounds = source.get_bounding_rect()
+
+            if bounds.width and bounds.height:
+                source = source.subsurface(bounds).copy()
+
+                scale = min(240 / source.get_width(), 340 / source.get_height())
+
+                self.mateo_card_image = pygame.transform.smoothscale(
+                    source,
+                    (
+                        round(source.get_width() * scale),
+                        round(source.get_height() * scale)
+                    )
+                )
+
+        self.mateo_sulat_image = None
+        path = asset_root / 'characters' / 'mateo_sulat.png'
+
+        if path.exists():
+            source = pygame.image.load(str(path)).convert_alpha()
+            bounds = source.get_bounding_rect()
+
+            if bounds.width and bounds.height:
+                source = source.subsurface(bounds).copy()
+                scale = min(240 / source.get_width(), 340 / source.get_height())
+
+                self.mateo_sulat_image = pygame.transform.smoothscale(
+                    source,
+                    (
+                        round(source.get_width() * scale),
+                        round(source.get_height() * scale)
+                    )
+                )
+
+        self.anino_image = None
+
+        path = asset_root / 'characters' / 'anino.png'
+
+        if path.exists():
+            source = pygame.image.load(str(path)).convert_alpha()
+            bounds = source.get_bounding_rect()
+
+            if bounds.width and bounds.height:
+                source = source.subsurface(bounds).copy()
+
+                scale = min(240 / source.get_width(), 340 / source.get_height())
+
+                self.anino_image = pygame.transform.smoothscale(
+                    source,
+                    (
+                        round(source.get_width() * scale),
+                        round(source.get_height() * scale)
+                    )
+                )
+
+
+            
         self.text_level = 50
         self.drag_slider = None
         self.focus_slider = 'text'
@@ -177,8 +331,54 @@ class InvestigationGame:
             self.settings_background = pygame.transform.smoothscale(pygame.image.load(str(settings_path)).convert(), (self.WIDTH, self.HEIGHT))
         self.volume = 0.7
         self.settings_path = Path(__file__).resolve().parent / 'settings.json'
+
+        #SOUND FX & MUSIC
+        sound_root = Path(__file__).resolve().parent / 'assets/sounds'
+        def load_sound(filename: str) -> pygame.mixer.Sound | None:
+            path = sound_root / filename
+            if path.exists():
+                try:
+                    return pygame.mixer.Sound(str(path))
+                except pygame.error as error:
+                    print(f"Sound load error: {error}")
+            return None
+        #Music
+        self.menu_music = sound_root / 'menu_music.mp3'
+        self.menu_music_sound = load_sound('menu_music.mp3')
+
+        self.investigation_music = sound_root / 'investigation_music.mp3'
+        self.tension_music = sound_root / 'tension_music.mp3'
+        self.finale_music = sound_root / 'final_choice_music.mp3'
+        self.ending_music = sound_root / 'ending_music.mp3'
+
+        #ambient sounds
+        self.city_ambient = load_sound('city_ambience.mp3')
+        self.library_ambience = load_sound('library_ambience.mp3')
+        self.warehouse_ambience = load_sound('warehouse_ambience.mp3')
+        self.old_building_ambience = load_sound('old_building_ambience.mp3')
+        self.plm_hallway_ambience = load_sound('plm_hallway_ambience.mp3')
+
+        #sound fx
+        self.intro_sound = load_sound('intro_sound.wav')
+        self.loud_heartbeat = load_sound('heartbeat_fast.mp3')
+        self.soft_heartbeat = load_sound('heartbeat.mp3')
+        self.projector_sound = load_sound('projector.mp3')
+        print("PROJECTOR OBJECT:", self.projector_sound)
+        self.clue_found_sound = load_sound('clue_found.mp3')
+        self.evidence_discovered_sound = load_sound('evidence_discovered.mp3')
+        self.puzzle_correct_sound = load_sound('puzzle_correct.mp3')
+        self.puzzle_incorrect_sound = load_sound('puzzle_wrong.mp3')
+
+        self.menu_music_channel = None
+        self.ambient_channel = None
+        self.current_music = None
+        self.current_ambient = None
+        self.current_sfx = None
+        self.sfx_channel = pygame.mixer.Channel(2)
+        self.special_sfx_channel = pygame.mixer.Channel(3)
         self.volume_preview = None
         self.preview_channel = None
+        self.menu_music_started = False
         self.last_preview_time = -1000
         self.load_settings()
         self.high_contrast = False
@@ -202,7 +402,7 @@ class InvestigationGame:
         self.video_index = -1
         self.start_video_teaser()
         self.backstory = [
-            ("SYSTEM", "PLM HALLWAY - A missing-person poster trembles on a bulletin board."),
+            ("SYSTEM", "A missing-person poster trembles on a bulletin board."),
             ("STUDENT 1", "Kahapon pa siya nawawala. Wala pa ring balita..."),
             ("STUDENT REPORTER", "The last confirmed sighting was exactly 4:28 PM yesterday, near Intramuros."),
             ("SYSTEM", "Your phone vibrates. A message from an unknown number appears."),
@@ -235,6 +435,89 @@ class InvestigationGame:
             print(f"Teaser audio unavailable: {error}")
         self.teaser_started = pygame.time.get_ticks()
 
+    def play_music(self, music_path, loop=-1):
+        print("=== MUSIC START ===")
+        print("STATE:", self.state)
+        print("MUSIC:", music_path)
+                   
+        pygame.mixer.music.stop()
+        if music_path: 
+            self.current_music = str(music_path)
+            pygame.mixer.music.load(str(music_path))
+            pygame.mixer.music.set_volume(self.volume * 0.35)
+            pygame.mixer.music.play(loop)
+
+    def stop_investigation_audio(self):
+        print("=== STOPPING INVESTIGATION AUDIO ===")
+        pygame.mixer.music.stop()
+
+    def play_ambient(self, ambient_sound):
+        pygame.mixer.music.stop()
+        print("=== AMBIENT called ===")
+
+        if ambient_sound is None:
+            print("ERROR AYAW MAG LOAD")
+            return
+        
+        if self.ambient_channel is None:
+            self.ambient_channel = pygame.mixer.Channel(1)
+        self.ambient_channel.stop()
+        self.ambient_channel.set_volume(self.volume * 0.65)
+        self.current_ambient = ambient_sound 
+        self.ambient_channel.play(ambient_sound, loops=-1)  
+
+    def stop_ambient(self):
+        print ("STOPPING AMBIENT CHANNEL")
+        print("CURRENT STATE:", self.state)
+
+        if self.ambient_channel:
+            self.ambient_channel.stop()
+            self.ambient_channel = None
+
+    def play_menu_music(self):
+        print ("MENU MUSIC START")
+
+        if self.menu_music_sound:
+            if self.menu_music_channel:
+                self.menu_music_channel.stop()
+
+            self.menu_music_channel = pygame.mixer.Channel(0)
+            self.menu_music_channel.set_volume(self.volume)
+            self.menu_music_channel.play(self.menu_music_sound, loops=-1)
+
+    def play_sfx(self, sound):
+        if sound:
+            self.sfx_channel.set_volume(self.volume)
+            self.sfx_channel.play(sound)
+    
+    def play_special_sfx(self,sound, loops=0):
+        print("SPECIAL SFX PLAY CALLED")
+        if sound:  
+            self.special_sfx_channel.set_volume(self.volume * 0.9)
+            self.current_sfx = str(sound)
+            self.special_sfx_channel.play(sound, loops=loops)
+
+    def stop_special_sfx(self):
+        if hasattr(self, "special_sfx_channel"):
+            self.special_sfx_channel.stop()
+
+    def show_audio_status(self):
+        print("========== AUDIO STATUS ==========")
+        print("STATE:", self.state)
+        print("MUSIC:", self.current_music)
+        print("AMBIENT:", self.current_ambient)
+        print("SPECIAL SFX:", self.current_sfx)
+
+        print("Music busy:", pygame.mixer.music.get_busy())
+
+        if self.ambient_channel:
+            print("Ambient busy:", self.ambient_channel.get_busy())
+
+        if hasattr(self, "special_sfx_channel"):
+            print("Special SFX busy:", self.special_sfx_channel.get_busy())
+
+        print("==================================")
+
     def finish_teaser(self) -> None:
         if pygame.mixer.get_init():
             pygame.mixer.music.stop()
@@ -243,6 +526,9 @@ class InvestigationGame:
             self.video_capture = None
         self.state = "INTRO"
         self.dialogue_index = 0
+
+        if self.ambient_channel is None:
+            self.play_ambient(self.plm_hallway_ambience)
 
     def update(self) -> None:
         if self.state != "TEASER":
@@ -276,29 +562,31 @@ class InvestigationGame:
                     ("SYSTEM", "Investigation: Which object deserves a closer look?"),
                 ],
                 [
-                    Choice("Travel to San Agustin Church", "The cross symbol leads you deeper into Intramuros.", "SAN_AGUSTIN", 0, 20),
-                    Choice("Search the University Activity Center", "You find no matching symbol and return to the library.", "LIBRARY", -5, 25),
+                    Choice("Travel to San Agustin Church", "The cross symbol leads you deeper into Intramuros.", "SAN_AGUSTIN",True, 0, 20),
+                    Choice("Search the University Activity Center", "You find no matching symbol and return to the library.", "LIBRARY", False, -5, 25),
                     Choice("Go to Justo Alberto Auditorium", "The empty seats offer no clue. You return uneasy.", "LIBRARY", -10, 25),
                 ],
             ),
             "SAN_AGUSTIN": Location(
                 "SAN_AGUSTIN", "SAN AGUSTIN", (69, 54, 47),
                 [("PLAYER", "The old stones carry a symbol matching the library stamp."),
+                 ("MATEO", "Dito tayo nagpapalipas ng oras pagkatapos ng klase. May krus sa lumang bato, tulad ng nasa card."),
                  ("SYSTEM", "The clue points to a place connected to prisoners and the northern end of Intramuros.")],
                 [
                     Choice("Travel to Fort Santiago", "You follow the historical trail toward the northern end of Intramuros.", "FORT_SANTIAGO", 0, 20),
-                    Choice("Head to Manila Cathedral", "The architecture is familiar, but the symbols do not match.", "SAN_AGUSTIN", -5, 30),
-                    Choice("Follow a stranger's shortcut", "A dead end. The sender knows you are wasting time.", "SAN_AGUSTIN", -10, 35),
+                    Choice("Head to Manila Cathedral", "The architecture is familiar, but the symbols do not match.", "SAN_AGUSTIN", False, -5, 30),
+                    Choice("Follow a stranger's shortcut", "A dead end. The sender knows you are wasting time.", "SAN_AGUSTIN", False, -10, 35),
                 ],
             ),
             "FORT_SANTIAGO": Location(
                 "FORT_SANTIAGO", "FORT SANTIAGO", (60, 69, 56),
                 [("CARETAKER", "Your friend left an envelope for whoever kept looking."),
+                 ("MATEO", "Sul sulat niya ito... Luke, kahit noon naghahanda ka na?"),
                  ("PLAYER", "Inside is a clue about old cinemas, art, and trade across the river.")],
                 [
-                    Choice("Cross the river to Escolta", "As sunset falls, an old radio begins playing by itself.", "ESCOLTA", 0, 30),
-                    Choice("Search Luneta", "You find nothing except crowds and lost time.", "FORT_SANTIAGO", -5, 40),
-                    Choice("Return to PLM", "It is too early to return; the trail is still outside the walls.", "FORT_SANTIAGO", -5, 35),
+                    Choice("Cross the river to Escolta", "As sunset falls, an old radio begins playing by itself.", "ESCOLTA", True, 0, 30),
+                    Choice("Search Luneta", "You find nothing except crowds and lost time.", "FORT_SANTIAGO", False, -5, 40),
+                    Choice("Return to PLM", "It is too early to return; the trail is still outside the walls.", "FORT_SANTIAGO", False, -5, 35),
                 ],
             ),
             "ESCOLTA": Location(
@@ -307,9 +595,9 @@ class InvestigationGame:
                  ("UNKNOWN NUMBER", "Masyado kang mapagtiwala. Binabantayan ko ang bawat liko mo."),
                  ("PLAYER", "The next message mentions devotees, candles, and alleys beside an estero.")],
                 [
-                    Choice("Follow the signal to Quiapo", "The signal stops, but its direction is clear.", "QUIAPO", 0, 25),
-                    Choice("Follow the radio into an alley", "The radio was bait. You return shaken.", "ESCOLTA", -10, 30),
-                    Choice("Travel to Taft", "The description does not fit. You lose precious time.", "ESCOLTA", -5, 45),
+                    Choice("Follow the signal to Quiapo", "The signal stops, but its direction is clear.", "QUIAPO", True, 0, 25),
+                    Choice("Follow the radio into an alley", "The radio was bait. You return shaken.", "ESCOLTA", False, -10, 30),
+                    Choice("Travel to Taft", "The description does not fit. You lose precious time.", "ESCOLTA", False, -5, 45),
                 ],
             ),
             "QUIAPO": Location(
@@ -317,9 +605,9 @@ class InvestigationGame:
                 [("PLAYER", "A red mark is painted on a cracked wall beside a note about a bridge."),
                  ("SYSTEM", "Compare it with the ink on your earlier clues before you decide.")],
                 [
-                    Choice("Follow the genuine mark to Sta. Cruz", "You bypass the bridge trap and move before the sender can react.", "STA_CRUZ", 0, 20),
-                    Choice("Go to the bridge", "Bitag iyon. Nakatakas ka, ngunit nabawasan ang iyong Lakas ng Loob.", "QUIAPO", -20, 50),
-                    Choice("Ask random vendors for the sender", "Nobody can identify the sender. The search costs time.", "QUIAPO", -5, 30),
+                    Choice("Follow the genuine mark to Sta. Cruz", "You bypass the bridge trap and move before the sender can react.", "STA_CRUZ", True, 0, 20),
+                    Choice("Go to the bridge", "Bitag iyon. Nakatakas ka, ngunit nabawasan ang iyong Lakas ng Loob.", "QUIAPO", False, -20, 50),
+                    Choice("Ask random vendors for the sender", "Nobody can identify the sender. The search costs time.", "QUIAPO", False, -5, 30),
                 ],
             ),
             "STA_CRUZ": Location(
@@ -327,9 +615,9 @@ class InvestigationGame:
                 [("PLAYER", "In an old shop, a Polaroid and cassette wait on a wooden chair."),
                  ("SYSTEM", "Moonlight reveals invisible ink: an old warehouse beside the estero.")],
                 [
-                    Choice("Follow the hidden message to the warehouse", "The cassette's traffic sounds grow louder near the estero.", "WAREHOUSE", 0, 25),
-                    Choice("Search an abandoned church", "No trace of your friend. The sender's clock keeps moving.", "STA_CRUZ", -10, 40),
-                    Choice("Return to Escolta", "You only find the dead radio again.", "STA_CRUZ", -5, 45),
+                    Choice("Follow the hidden message to the warehouse", "The cassette's traffic sounds grow louder near the estero.", "WAREHOUSE",True, 0, 25),
+                    Choice("Search an abandoned church", "No trace of your friend. The sender's clock keeps moving.", "STA_CRUZ", False, -10, 40),
+                    Choice("Return to Escolta", "You only find the dead radio again.", "STA_CRUZ", False, -5, 45),
                 ],
             ),
             "WAREHOUSE": Location(
@@ -338,9 +626,9 @@ class InvestigationGame:
                  ("UNKNOWN NUMBER", "Bumalik ka sa loob ng pader bago sumapit ang liwanag."),
                  ("PLAYER", "The cassette confirms it. The final location is PLM.")],
                 [
-                    Choice("Return to PLM with the evidence", "You run toward Intramuros before dawn.", "FINALE", 0, 35),
-                    Choice("Wait for help", "Waiting feels safe, but the message's deadline does not stop.", "WAREHOUSE", -15, 55),
-                    Choice("Go back to Quiapo", "The old false trail costs nearly an hour.", "WAREHOUSE", -10, 60),
+                    Choice("Return to PLM with the evidence", "You run toward Intramuros before dawn.", "FINALE", True, 0, 35),
+                    Choice("Wait for help", "Waiting feels safe, but the message's deadline does not stop.", "WAREHOUSE", False, -15, 55),
+                    Choice("Go back to Quiapo", "The old false trail costs nearly an hour.", "WAREHOUSE", False, -10, 60),
                 ],
             ),
         }
@@ -415,10 +703,13 @@ class InvestigationGame:
         self.solved_puzzles.clear()
         self.security_alerted = False
 
+        pygame.mixer.music.stop()
+        self.play_menu_music()
+
     def current_dialogue(self) -> list[tuple[str, str]]:
         if self.state == "INTRO":
             return [
-                ("SYSTEM", "PLM HALLWAY - A missing-person poster hangs on the bulletin board. The photograph belongs to Lucas 'Luke' Valderrama, a campus journalist."),
+                ("SYSTEM", " A missing-person poster hangs on the bulletin board. The photograph belongs to Lucas 'Luke' Valderrama, a campus journalist."),
                 ("STUDENT 1", "Isang linggo na mula nang iulat na nawawala si Lucas. Wala pa ring malinaw na balita..."),
                 ("STUDENT REPORTER", "Lucas was last seen near Intramuros at exactly 4:28 PM. Anyone with information is asked to come forward."),
                 ("SYSTEM", "The broadcast fades. Around the poster, whispers give way to silence. Someone is still waiting for Lucas to come home."),
@@ -438,19 +729,37 @@ class InvestigationGame:
             return
         self.dialogue_index = 0
         if self.state == "INTRO":
+            self.stop_ambient()
+            if self.menu_music_channel:
+                self.menu_music_channel.stop()
             self.state = "MENU"
-        elif self.state == "BACKSTORY":
+            self.play_menu_music()
+            
+        elif self.state == "BACKSTORY": 
+            self.stop_ambient()
             self.state = "CHOICE_OPENING"
+            self.play_music(self.investigation_music)   
+           
         elif self.state in self.locations:
-            # A solved puzzle stays solved if the player returns after a wrong route.
+            if self.state == "WAREHOUSE":
+                print("WAREHOUSE DIALOGUE FINISHED - STOPPING PROJECTOR")
+                self.special_sfx_channel.stop()
+                pygame.mixer.music.stop()
+                self.sfx_channel.stop()
+            else: 
+                self.play_sfx(self.clue_found_sound)
+                    
             if self.state in self.solved_puzzles:
                 self.state = f"CHOICE_{self.state}"
             else:
                 self.state = f"PUZZLE_{self.state}"
         elif self.state == "FINALE":
+            self.special_sfx_channel.stop()
             self.state = "FINAL_CHOICE"
+            self.play_music(self.finale_music)
 
     def solve_puzzle(self, index: int) -> None:
+        print("SOLVE PUZZLE CALLED:", index)
         """Check an investigation puzzle, then unlock that location's travel choices."""
         location_key = self.state.removeprefix("PUZZLE_")
         puzzle = self.puzzles[location_key]
@@ -460,6 +769,7 @@ class InvestigationGame:
             self.state = f'CHOICE_{location_key}'
             return
         if index == puzzle.correct_index:
+            self.play_sfx(self.puzzle_correct_sound)
             self.solved_puzzles.add(location_key)
             self.player.change_composure(5)
             intuitive = self.player.character == 'Julian' and location_key in {'LIBRARY', 'QUIAPO', 'STA_CRUZ'}
@@ -470,11 +780,13 @@ class InvestigationGame:
             if self.player.add_evidence(puzzle.evidence.name, puzzle.evidence.description, puzzle.evidence.source):
                 self.notice += f"\nEvidence added: {puzzle.evidence.name}\nLakas ng Loob +5"
             if location_key == "WAREHOUSE":
-                self.security_alerted = True
+                self.security_alerted = True      
                 self.notice += "\nYou secretly send the projector recording and PLM location to campus security."
             self.next_after_notice = f"CHOICE_{location_key}"
             self.state = "NOTICE"
         else:
+            print("WRONG ANSWER TRIGGERED")
+            self.play_sfx(self.puzzle_incorrect_sound)
             penalty = 3 if self.player.character == 'Clara' else 5
             self.player.change_composure(-penalty)
             self.player.spend_time(10)
@@ -490,8 +802,15 @@ class InvestigationGame:
         if self.state == 'CHOICE_OPENING':
             if index not in (0, 1, 2):
                 return
+
+            self.stop_ambient()
+            if not pygame.mixer.music.get_busy():
+                self.play_music(self.investigation_music)
+            
             self.player.spend_time(5 if index == 2 else 20)
             if index != 2:
+                self.play_sfx(self.puzzle_incorrect_sound)
+
                 self.player.change_composure(-10)
                 if self.check_lakas_ng_loob():
                     return
@@ -499,8 +818,10 @@ class InvestigationGame:
                 self.notice = f'{place}: Wala rito ang tinutukoy ng mensahe. Balikan ko ang clue.\nLakas ng Loob -10 | 20 minutes spent.'
                 self.next_after_notice = 'CHOICE_OPENING'
             else:
+                self.play_sfx(self.puzzle_correct_sound)
                 self.notice = 'Tahimik na libro... sa library!\nYou head to the PLM Library. 5 minutes spent.'
-                self.next_after_notice = 'LIBRARY'
+                self.next_after_notice = 'PUZZLE_LIBRARY'
+
             self.dialogue_index = 0
             self.state = 'NOTICE'
             return
@@ -512,6 +833,14 @@ class InvestigationGame:
         if not 0 <= index < len(location.choices):
             return
         choice = location.choices[index]
+        if source == "WAREHOUSE" and choice.next_state != "WAREHOUSE":
+            self.stop_ambient()
+            self.stop_special_sfx()
+        
+        if choice.correct:
+            self.play_sfx(self.puzzle_correct_sound)
+        else: 
+            self.play_sfx(self.puzzle_incorrect_sound)
         self.player.change_composure(choice.composure_change)
         shortcut = (self.player.character == 'Mateo' and
                     (source, choice.next_state) in {
@@ -525,6 +854,7 @@ class InvestigationGame:
         if shortcut:
             self.notice += f'\nIntramuros Insight: saved 5 minutes ({choice.time_cost - 5} minutes spent).'
         if choice.evidence and self.player.add_evidence(choice.evidence.name, choice.evidence.description):
+            self.play_special_sfx(self.evidence_discovered_sound)
             self.notice += f"\nEvidence added: {choice.evidence.name}"
         self.state = "NOTICE"
         self.next_after_notice = choice.next_state
@@ -532,9 +862,12 @@ class InvestigationGame:
     def check_lakas_ng_loob(self) -> bool:
         """End the run immediately when fear and exhaustion overwhelm the player."""
         if self.player.composure <= 0:
+            self.play_sfx(self.loud_heartbeat)
             self.state = "PANIC_ENDING"
             self.journal_open = False
             return True
+        elif self.player.composure <= 30: 
+            self.play_sfx(self.soft_heartbeat)
         return False
 
     def finish(self, index: int) -> None:
@@ -545,6 +878,8 @@ class InvestigationGame:
             self.state = "BITTERSWEET_ENDING"
         else:
             self.state = "BAD_ENDING"
+
+        self.play_music(self.ending_music)
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if self.state == 'CHOICE_OPENING' and not self.journal_open and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -592,6 +927,7 @@ class InvestigationGame:
         if self.state == "MENU":
             if event.key == pygame.K_1:
                 self.state = "CHARACTER"
+                self.play_menu_music()
             elif event.key == pygame.K_ESCAPE:
                 self.running = False
         elif self.state == "CHARACTER":
@@ -599,23 +935,64 @@ class InvestigationGame:
                 self.player.character = "Silhouette A" if event.key == pygame.K_1 else "Silhouette B"
                 # The player has already seen the opening message before the menu.
                 # Start the first investigation after selecting a character.
-                self.state = "LIBRARY"
+                
+                if self.menu_music_channel: #stop the menu music
+                    self.menu_music_channel.stop()
+
+                pygame.mixer.music.stop() #stop music
+                self.stop_ambient() #stop the ambient music
+
+                self.state = "BACKSTORY"
                 self.dialogue_index = 0
+                
+                self.play_ambient(self.plm_hallway_ambience)  
+                
             elif event.key == pygame.K_ESCAPE:
                 self.state = "MENU"
         elif self.state in {"INTRO", "BACKSTORY", *self.locations, "FINALE"}:
             if event.key in (pygame.K_SPACE, pygame.K_RETURN):
                 self.advance_dialogue()
+                
         elif self.state.startswith("PUZZLE_"):
             if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.solve_puzzle(event.key - pygame.K_1)
         elif self.state.startswith("CHOICE_") or self.state == "FINAL_CHOICE":
             if event.key in (pygame.K_1, pygame.K_2, pygame.K_3):
                 self.choose(event.key - pygame.K_1)
+
         elif self.state == "NOTICE":
+            self.show_audio_status()
             if event.key in (pygame.K_SPACE, pygame.K_RETURN):
-                self.state = self.next_after_notice
+                next_state = self.next_after_notice
+                self.stop_investigation_audio()
+                if next_state == "WAREHOUSE":
+                    print("WAREHOUSE AUDIO RESET")
+
+                    pygame.mixer.music.stop()
+                    pygame.mixer.Channel(1).stop()
+                    self.ambient_channel = None
+                    
+                    self.play_ambient(self.warehouse_ambience)
+                    print("WAREHOUSE AMBIENCE SHOULD BE:", self.warehouse_ambience)
+                    self.stop_special_sfx()
+                    self.play_special_sfx(self.projector_sound)
+
+                elif next_state == "LIBRARY":
+                    self.stop_ambient()
+                    self.play_ambient(self.library_ambience)
+
+                elif next_state in ["SAN_AGUSTIN", "FORT_SANTIAGO"]:
+                    self.stop_ambient()
+                    self.play_ambient(self.old_building_ambience)
+
+                elif next_state in ["ESCOLTA", "QUIAPO", "STA_CRUZ"]:
+                    self.stop_ambient()
+                    self.play_ambient(self.city_ambient)
+
+                self.state = next_state
+                self.show_audio_status()
                 self.dialogue_index = 0
+
         elif self.state.endswith("ENDING") and event.key == pygame.K_r:
             self.reset()
 
@@ -648,12 +1025,125 @@ class InvestigationGame:
 
     def draw_dialogue(self) -> None:
         dialogue = self.current_dialogue()
-        title = "PLM HALLWAY" if self.state in {"INTRO", "BACKSTORY"} else self.locations[self.state].title if self.state in self.locations else "PLM COURTYARD"
+        title = " " if self.state in {"INTRO", "BACKSTORY"} else self.locations[self.state].title if self.state in self.locations else "PLM COURTYARD"
         color = self.locations[self.state].color if self.state in self.locations else (47, 35, 42)
-        self.screen.fill(color)
-        # A simple silhouette. Replace later with sprite images if desired.
-        pygame.draw.ellipse(self.screen, self.INK, (115, 150, 150, 180))
-        pygame.draw.rect(self.screen, self.INK, (145, 285, 90, 180), border_radius=30)
+   
+        #BACKGROUND image for intro and backstory
+        if self.state in {"INTRO", "BACKSTORY"} and self.plm_hallway_background:
+            self.screen.blit(self.plm_hallway_background, (0, 0))
+        #LIBRARY
+        elif self.state == "LIBRARY":
+            speaker, text = self.current_dialogue()[self.dialogue_index]
+            #3rd scene
+            if "library stamp" in text.lower() and self.library_card_background:
+                print ("LIBRARY CARD BACKGROUND SHOWING")
+                self.screen.blit(self.library_card_background, (0, 0))  
+            elif self.dialogue_index == 0 and self.library_background:
+                print ("LIBRARY BACKGROUND SHOWING")
+                self.screen.blit(self.library_background, (0, 0))
+        #SAN_AGUSTIN
+        elif self.state == "SAN_AGUSTIN" and self.san_agustin_background:
+            self.screen.blit(self.san_agustin_background, (0, 0))
+        #FORT_SANTIAGO
+        elif self.state == "FORT_SANTIAGO" and self.fort_santiago_background:
+            self.screen.blit(self.fort_santiago_background, (0, 0))
+        #STA_CRUZ
+        elif self.state == "STA_CRUZ" and self.stacruz_background:
+            self.screen.blit(self.stacruz_background, (0, 0))
+        #QUIAPO
+        elif self.state == "QUIAPO" and self.quiapo_background:
+            self.screen.blit(self.quiapo_background, (0, 0))
+        #ESCOLTA
+        elif self.state == "ESCOLTA":
+            if self.dialogue_index == 0 and self.escolta_radio_background:
+                print ("ESCOLTA RADIO BACKGROUND SHOWING")
+                self.screen.blit(self.escolta_radio_background, (0, 0))
+            elif self.dialogue_index >= 1 and self.escolta_background:
+                print ("ESCOLTA RADIO BACKGROUND SHOWING")
+                self.screen.blit(self.escolta_background, (0, 0))
+        #WAREHOUSE
+        elif self.state == "WAREHOUSE" and self.warehouse_background:
+            self.screen.blit(self.warehouse_background, (0, 0))
+        #PLM COURTYARD
+        elif self.state == "FINALE":
+            if self.dialogue_index == 0 and self.plm_courtyard_background:
+                print ("COURTYARD RESTRAINED BACKGROUND SHOWING")
+                self.screen.blit(self.plm_courtyard_background, (0, 0))
+            elif self.dialogue_index >= 1 and self.courtyard_restrained_background:
+                print ("COURTYARD RESTRAINED BACKGROUND SHOWING")
+                self.screen.blit(self.courtyard_restrained_background, (0, 0))
+
+        elif self.state == "FINALE" and self.plm_hallway_two_background:
+            self.screen.blit(self.plm_hallway_two_background, (0, 0))
+
+        else:
+            self.screen.fill(color)
+        
+        #character_index = {"Mateo": 0, "Clara": 1, "Julian": 2}.get(self.player.character, 0)
+        if self.state in {"INTRO", "BACKSTORY"}:
+            back_sprite = self.back_characters[self.character_index]
+            if back_sprite:
+                self.screen.blit(back_sprite, (70, 120))
+
+        speaker, text = dialogue[self.dialogue_index]
+
+        character_map = {"Mateo": 0, "MATEO": 0, "Clara": 1, "CLARA": 1,  "Julian": 2,"JULIAN": 2, "CARETAKER": 3, "STUDENT 1": 4,}
+        
+        sprite = None
+        print("CURRENT:", speaker, self.state)
+        if self.state not in {"INTRO", "BACKSTORY"}:
+
+            if speaker.upper() == "UNKNOWN NUMBER" and self.state == "ESCOLTA":
+                print("USING ANINO")
+                sprite = self.anino_image
+
+            elif speaker.upper() == "MATEO":
+                if self.state == "SAN_AGUSTIN":
+                    print("USING CARD IMAGE")
+                    sprite = self.mateo_card_image
+
+                elif self.state == "FORT_SANTIAGO":
+                    print("USING SULAT IMAGE")
+                    sprite = self.mateo_sulat_image
+                    print("SULAT SPRITE:", sprite)
+
+                else: 
+                    print("normal mateo")
+                    sprite = self.character_images[0]
+
+            elif speaker.upper() == "CARETAKER":
+                sprite = self.character_images[3]
+
+            elif speaker in character_map:
+                sprite = self.character_images[character_map[speaker]]
+  
+        no_character_scenes = {
+            "HALLWAY_SPEAKER"
+        }
+
+        if self.state not in no_character_scenes:
+            if sprite:
+                if speaker == "CARETAKER":
+                    self.screen.blit(sprite, (550,160))
+                else:
+                    self.screen.blit(sprite, (600,100))
+
+        if speaker == "STUDENT 1":
+            sprite = self.student_one_image
+
+            if sprite:
+                if speaker.upper() == "UNKNOWN NUMBER":
+                    self.screen.blit(sprite, (360, 100))
+
+                elif speaker == "CARETAKER":
+                    self.screen.blit(sprite, (550,160))
+
+                else:
+                    self.screen.blit(sprite, (600,100))
+
+        
+
+        print(self.state)
         self.draw_hud()
         self.screen.blit(self.title_font.render(title, True, self.PAPER), (40, 78))
         self.panel(pygame.Rect(45, 390, 870, 225), self.GOLD)
@@ -667,7 +1157,24 @@ class InvestigationGame:
             source = "FINALE"
         else:
             source = self.state.removeprefix("CHOICE_")
-        self.screen.fill(self.INK)
+
+        if self.state == "CHOICE_LIBRARY" and self.library_background:
+            self.screen.blit(self.library_background, (0, 0))
+        elif self.state == "CHOICE_SAN_AGUSTIN" and self.san_agustin_background:
+            self.screen.blit(self.san_agustin_background, (0, 0))
+        elif self.state == "CHOICE_FORT_SANTIAGO" and self.fort_santiago_background:
+            self.screen.blit(self.fort_santiago_background, (0, 0))
+        elif self.state == "CHOICE_ESCOLTA" and self.escolta_background:
+            self.screen.blit(self.escolta_background, (0, 0))
+        elif self.state == "CHOICE_QUIAPO" and self.quiapo_background:
+            self.screen.blit(self.quiapo_background, (0, 0))
+        elif self.state == "CHOICE_STA_CRUZ" and self.stacruz_background:
+            self.screen.blit(self.stacruz_background, (0, 0))
+        elif self.state == "CHOICE_WAREHOUSE" and self.warehouse_background:
+            self.screen.blit(self.warehouse_background, (0, 0))
+        else:
+            self.screen.fill(self.INK)
+
         self.draw_hud()
         if source == "FINALE":
             title = "FINAL DECISION"
@@ -689,9 +1196,25 @@ class InvestigationGame:
         location_key = self.state.removeprefix("PUZZLE_")
         puzzle = self.puzzles[location_key]
         color = self.locations[location_key].color
-        self.screen.fill(color)
+        if location_key == "LIBRARY" and self.library_card_background:
+            self.screen.blit(self.library_card_background, (0, 0))
+        elif location_key == "SAN_AGUSTIN" and self.san_agustin_background:
+            self.screen.blit(self.san_agustin_background, (0, 0))
+        elif location_key == "FORT_SANTIAGO" and self.fort_santiago_background:
+            self.screen.blit(self.fort_santiago_background, (0, 0))
+        elif location_key == "ESCOLTA" and self.escolta_background:
+            self.screen.blit(self.escolta_background, (0, 0))
+        elif location_key == "QUIAPO" and self.quiapo_background:
+            self.screen.blit(self.quiapo_background, (0, 0))
+        elif location_key == "STA_CRUZ" and self.stacruz_background:
+            self.screen.blit(self.stacruz_background, (0, 0))
+        elif location_key == "WAREHOUSE" and self.warehouse_background:
+            self.screen.blit(self.warehouse_background, (0, 0))
+        
+        else:
+            self.screen.fill(color)
         self.draw_hud()
-        self.screen.blit(self.title_font.render("INVESTIGATION", True, self.PAPER), (45, 78))
+        self.screen.blit(self.title_font.render(" ", True, self.PAPER), (45, 78))
         self.screen.blit(self.font.render(puzzle.title, True, self.GOLD), (50, 155))
         self.draw_lines(puzzle.prompt, 50, 190, 840, self.PAPER)
         for index, option in enumerate(puzzle.options):
@@ -1128,8 +1651,12 @@ class InvestigationGame:
             self.state = 'MENU'
         elif action == 'SELECT':
             self.configure_route()
+            pygame.mixer.music.stop()
+            self.stop_ambient()
             self.state = 'BACKSTORY'
             self.dialogue_index = 0
+            print("ENTERED BACKSTORY")
+            self.play_ambient(self.plm_hallway_ambience)
 
     def character_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -1203,7 +1730,11 @@ class InvestigationGame:
 
     def draw(self) -> None:
         if self.state == 'CHOICE_OPENING':
-            self.screen.fill(self.INK)
+            if self.plm_hallway_two_background:
+                self.screen.blit(self.plm_hallway_two_background, (0, 0))
+            else:
+                self.screen.fill(self.INK)  
+
             self.draw_hud()
             heading = self.title_font.render('THE FIRST CLUE', True, self.PAPER)
             self.screen.blit(heading, (50, 75))
@@ -1234,6 +1765,9 @@ class InvestigationGame:
         if self.state == "TEASER":
             self.draw_teaser()
         elif self.state == "MENU":
+            if not self.menu_music_started:
+                self.play_menu_music()
+                self.menu_music_started = True
             self.screen.fill(self.BLACK)
             self.screen.blit(self.title_font.render("4:28", True, self.RED), (380, 150))
             self.draw_lines("A fictional investigation RPG set around PLM and Intramuros. All characters and events are fictional.", 230, 235, 550, self.MUTED)
@@ -1251,7 +1785,37 @@ class InvestigationGame:
         elif self.state.startswith("CHOICE_") or self.state == "FINAL_CHOICE":
             self.draw_choice()
         elif self.state == "NOTICE":
-            self.screen.fill(self.INK)
+            #show the next location bg
+            if self.next_after_notice in {"CHOICE_OPENING", "INTRAMUROS"} and self.plm_hallway_two_background:
+                self.screen.blit(self.plm_hallway_two_background, (0, 0))
+
+            elif self.next_after_notice in {"LIBRARY", "CHOICE_LIBRARY", "PUZZLE_LIBRARY"} and self.library_background:
+                self.screen.blit(self.library_background, (0, 0))
+
+            elif self.next_after_notice in {"SAN_AGUSTIN", "CHOICE_SAN_AGUSTIN", "PUZZLE_SAN_AGUSTIN"} and self.san_agustin_background:
+                self.screen.blit(self.san_agustin_background, (0, 0))
+
+            elif self.next_after_notice in {"FORT_SANTIAGO", "CHOICE_FORT_SANTIAGO", "PUZZLE_FORT_SANTIAGO"} and self.fort_santiago_background:
+                self.screen.blit(self.fort_santiago_background, (0, 0))
+
+            elif self.next_after_notice in {"ESCOLTA", "CHOICE_ESCOLTA", "PUZZLE_ESCOLTA"} and self.escolta_background:
+                print("NEXT LOCATION:", self.next_after_notice)
+                self.screen.blit(self.escolta_background, (0, 0))
+
+            elif self.next_after_notice in {"QUIAPO", "CHOICE_QUIAPO", "PUZZLE_QUIAPO"} and self.quiapo_background:
+                self.screen.blit(self.quiapo_background, (0, 0))
+
+            elif self.next_after_notice in {"STA_CRUZ", "CHOICE_STA_CRUZ", "PUZZLE_STA_CRUZ"} and self.stacruz_background:
+                self.screen.blit(self.stacruz_background, (0, 0))
+
+            elif self.next_after_notice in {"WAREHOUSE", "CHOICE_WAREHOUSE", "PUZZLE_WAREHOUSE"} and self.warehouse_background:
+                self.screen.blit(self.warehouse_background, (0, 0))
+
+            elif self.next_after_notice in {"FINALE", "CHOICE_FINALE"} and self.plm_courtyard_background:
+                self.screen.blit(self.plm_courtyard_background, (0, 0))
+
+            else:
+                self.screen.fill(self.INK)
             self.draw_hud()
             self.panel(pygame.Rect(90, 115, 780, 480), self.GOLD)
             self.screen.blit(self.title_font.render("RESULT", True, self.GOLD), (355, 135))
